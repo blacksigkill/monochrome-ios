@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import MediaPlayer
+import Observation
 
 @Observable
 class AudioPlayerService {
