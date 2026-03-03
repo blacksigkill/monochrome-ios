@@ -3,144 +3,154 @@ import SwiftUI
 struct HomeView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(AudioPlayerService.self) private var audioPlayer
-    @State private var editorPicks: [EditorPick] = []
-    @State private var isLoading = true
+    @Environment(LibraryManager.self) private var libraryManager
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 12 { return "Bonjour" }
-        if hour < 18 { return "Bon apres-midi" }
-        return "Bonsoir"
+        if hour < 12 { return "Good morning" }
+        if hour < 18 { return "Good afternoon" }
+        return "Good evening"
     }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
-                // Greeting header (Spotify style)
+                // Greeting header
                 Text(greeting)
                     .font(.system(size: 26, weight: .bold))
                     .foregroundColor(Theme.foreground)
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
 
-                // Editor's Picks section
-                if isLoading {
-                    HStack { Spacer(); ProgressView().tint(Theme.mutedForeground); Spacer() }
-                        .padding(.vertical, 60)
-                } else if !editorPicks.isEmpty {
-                    // Quick picks grid (2 columns like Spotify)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Selection de l'editeur")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(Theme.foreground)
-                            .padding(.horizontal, 16)
+                // Recently played
+                if !audioPlayer.playHistory.isEmpty || audioPlayer.currentTrack != nil {
+                    recentlyPlayed
+                }
 
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 8),
-                            GridItem(.flexible(), spacing: 8)
-                        ], spacing: 8) {
-                            ForEach(editorPicks.prefix(6)) { pick in
-                                EditorPickCompactCard(pick: pick)
-                            }
-                        }
-                        .padding(.horizontal, 16)
+                // Favorites quick access
+                if !libraryManager.favoriteTracks.isEmpty {
+                    favoritesSection
+                }
+
+                // Empty state
+                if audioPlayer.playHistory.isEmpty && audioPlayer.currentTrack == nil && libraryManager.favoriteTracks.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 52, weight: .light))
+                            .foregroundColor(Theme.mutedForeground.opacity(0.3))
+                        Text("Search for a track to get started")
+                            .font(.system(size: 16))
+                            .foregroundColor(Theme.mutedForeground)
                     }
-
-                    // Full cards carousel
-                    if editorPicks.count > 6 {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("A decouvrir")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(Theme.foreground)
-                                .padding(.horizontal, 16)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 14) {
-                                    ForEach(editorPicks.dropFirst(6)) { pick in
-                                        EditorPickCard(pick: pick)
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                            }
-                        }
-                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 80)
                 }
 
                 Spacer(minLength: 100)
             }
         }
         .background(Theme.background)
-        .task {
-            do {
-                editorPicks = try await MonochromeAPI().fetchEditorsPicks()
-            } catch {
-                print("Error fetching editor picks: \(error)")
+    }
+
+    // MARK: - Recently Played
+
+    private var recentlyPlayed: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recently played")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(Theme.foreground)
+                .padding(.horizontal, 16)
+
+            // Compact grid (2 columns, Spotify style)
+            let recentTracks = recentTracksList
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 8),
+                GridItem(.flexible(), spacing: 8)
+            ], spacing: 8) {
+                ForEach(recentTracks.prefix(6)) { track in
+                    RecentTrackCard(track: track) {
+                        audioPlayer.play(track: track)
+                    }
+                }
             }
-            isLoading = false
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var recentTracksList: [Track] {
+        var tracks: [Track] = []
+        // Current track first
+        if let current = audioPlayer.currentTrack {
+            tracks.append(current)
+        }
+        // Then history (most recent first), deduplicated
+        for track in audioPlayer.playHistory.reversed() {
+            if !tracks.contains(where: { $0.id == track.id }) {
+                tracks.append(track)
+            }
+        }
+        return tracks
+    }
+
+    // MARK: - Favorites
+
+    private var favoritesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Your favorites")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Theme.foreground)
+
+                Spacer()
+
+                Text("\(libraryManager.favoriteTracks.count) track\(libraryManager.favoriteTracks.count > 1 ? "s" : "")")
+                    .font(.system(size: 13))
+                    .foregroundColor(Theme.mutedForeground)
+            }
+            .padding(.horizontal, 16)
+
+            LazyVStack(spacing: 0) {
+                ForEach(Array(libraryManager.favoriteTracks.prefix(5).enumerated()), id: \.element.id) { index, track in
+                    let queue = Array(libraryManager.favoriteTracks.dropFirst(index + 1))
+                    TrackRow(track: track, queue: queue, showCover: true, navigationPath: $navigationPath)
+                }
+            }
         }
     }
 }
 
-// MARK: - Compact Card (2-col grid, Spotify style)
+// MARK: - Recent Track Card (compact, 2-col grid)
 
-struct EditorPickCompactCard: View {
-    let pick: EditorPick
-
-    var body: some View {
-        HStack(spacing: 0) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: pick.cover)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(Theme.card)
-                }
-            }
-            .frame(width: 56, height: 56)
-            .clipped()
-
-            Text(pick.title ?? "Unknown")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Theme.foreground)
-                .lineLimit(2)
-                .padding(.horizontal, 10)
-
-            Spacer()
-        }
-        .frame(height: 56)
-        .background(Theme.secondary.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-}
-
-// MARK: - Full Card (horizontal scroll)
-
-struct EditorPickCard: View {
-    let pick: EditorPick
+struct RecentTrackCard: View {
+    let track: Track
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: pick.cover)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    RoundedRectangle(cornerRadius: 4).fill(Theme.card)
-                        .overlay(ProgressView().tint(Theme.mutedForeground))
+        Button(action: action) {
+            HStack(spacing: 0) {
+                AsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
+                    if let image = phase.image {
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        Rectangle().fill(Theme.card)
+                    }
                 }
+                .frame(width: 56, height: 56)
+                .clipped()
+
+                Text(track.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.foreground)
+                    .lineLimit(2)
+                    .padding(.horizontal, 10)
+
+                Spacer()
             }
-            .frame(width: 150, height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-
-            Text(pick.title ?? "Unknown")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Theme.foreground)
-                .lineLimit(1)
-
-            Text(pick.artist?.name ?? "")
-                .font(.system(size: 11))
-                .foregroundColor(Theme.mutedForeground)
-                .lineLimit(1)
+            .frame(height: 56)
+            .background(Theme.secondary.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        .frame(width: 150)
+        .buttonStyle(.plain)
     }
 }
 

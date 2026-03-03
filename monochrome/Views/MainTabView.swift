@@ -30,9 +30,9 @@ struct MainTabView: View {
 
                         // Custom tab bar
                         HStack {
-                            TabBarButton(icon: "house.fill", label: "Accueil", isSelected: selectedTab == 0) { selectedTab = 0 }
-                            TabBarButton(icon: "magnifyingglass", label: "Rechercher", isSelected: selectedTab == 1) { selectedTab = 1 }
-                            TabBarButton(icon: "books.vertical.fill", label: "Bibliotheque", isSelected: selectedTab == 2) { selectedTab = 2 }
+                            TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
+                            TabBarButton(icon: "magnifyingglass", label: "Search", isSelected: selectedTab == 1) { selectedTab = 1 }
+                            TabBarButton(icon: "books.vertical.fill", label: "Library", isSelected: selectedTab == 2) { selectedTab = 2 }
                         }
                         .padding(.top, 8)
                         .padding(.bottom, 4)

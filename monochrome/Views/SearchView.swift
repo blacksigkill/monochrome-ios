@@ -16,7 +16,7 @@ struct SearchView: View {
                     .font(.system(size: 16))
                     .foregroundColor(Theme.mutedForeground)
 
-                TextField("Que veux-tu ecouter ?", text: $searchText)
+                TextField("What do you want to listen to?", text: $searchText)
                     .font(.system(size: 16))
                     .foregroundColor(Theme.foreground)
                     .autocorrectionDisabled()
@@ -55,7 +55,7 @@ struct SearchView: View {
             } else if hasSearched {
                 Spacer()
                 VStack(spacing: 10) {
-                    Text("Aucun resultat pour")
+                    Text("No results for")
                         .font(.system(size: 16))
                         .foregroundColor(Theme.mutedForeground)
                     Text("\"\(searchText)\"")
@@ -66,7 +66,7 @@ struct SearchView: View {
             } else {
                 Spacer()
                 VStack(spacing: 10) {
-                    Text("Rechercher des titres")
+                    Text("Search for tracks")
                         .font(.system(size: 16))
                         .foregroundColor(Theme.mutedForeground)
                 }
@@ -226,21 +226,21 @@ struct TrackOptionsSheet: View {
                     // Like
                     OptionRow(
                         icon: libraryManager.isFavorite(trackId: track.id) ? "heart.fill" : "heart",
-                        label: libraryManager.isFavorite(trackId: track.id) ? "Retirer des favoris" : "Ajouter aux favoris",
+                        label: libraryManager.isFavorite(trackId: track.id) ? "Remove from favorites" : "Add to favorites",
                         iconColor: libraryManager.isFavorite(trackId: track.id) ? Theme.foreground : Theme.mutedForeground
                     ) {
                         libraryManager.toggleFavorite(track: track)
                     }
 
                     // Add to queue
-                    OptionRow(icon: "text.line.last.and.arrowtriangle.forward", label: "Ajouter a la file d'attente") {
+                    OptionRow(icon: "text.line.last.and.arrowtriangle.forward", label: "Add to queue") {
                         audioPlayer.queuedTracks.append(track)
                         isPresented = false
                     }
 
                     // Go to artist
                     if let artist = track.artist {
-                        OptionRow(icon: "person.fill", label: "Voir l'artiste") {
+                        OptionRow(icon: "person.fill", label: "Go to artist") {
                             isPresented = false
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 navigationPath.append(artist)
@@ -249,7 +249,7 @@ struct TrackOptionsSheet: View {
                     }
 
                     // Share
-                    OptionRow(icon: "square.and.arrow.up", label: "Partager") {
+                    OptionRow(icon: "square.and.arrow.up", label: "Share") {
                         isPresented = false
                     }
                 }

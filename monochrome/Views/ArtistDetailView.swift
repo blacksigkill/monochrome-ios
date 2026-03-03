@@ -15,7 +15,7 @@ struct ArtistDetailView: View {
     @State private var discoFilter: DiscoFilter = .all
 
     enum DiscoFilter: String, CaseIterable {
-        case all = "Tout"
+        case all = "All"
         case albums = "Albums"
         case singles = "Singles"
     }
@@ -84,7 +84,7 @@ struct ArtistDetailView: View {
                         .lineLimit(2)
 
                     if let pop = artistDetail?.popularity, pop > 0 {
-                        Text("\(formatNumber(pop * 10000)) auditeurs mensuels")
+                        Text("\(formatNumber(pop * 10000)) monthly listeners")
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.7))
                     }
@@ -169,7 +169,7 @@ struct ArtistDetailView: View {
     @ViewBuilder
     private func popularTracks(_ tracks: [Track]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Populaires")
+            Text("Popular")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(Theme.foreground)
                 .padding(.horizontal, 16)
@@ -188,7 +188,7 @@ struct ArtistDetailView: View {
 
             if tracks.count > 5 {
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showAllTracks.toggle() } }) {
-                    Text(showAllTracks ? "Afficher moins" : "Voir plus")
+                    Text(showAllTracks ? "Show less" : "See more")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(Theme.mutedForeground)
                 }
@@ -204,7 +204,7 @@ struct ArtistDetailView: View {
     private func discography(_ albums: [Album]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Discographie")
+                Text("Discography")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(Theme.foreground)
 
@@ -256,7 +256,7 @@ struct ArtistDetailView: View {
     @ViewBuilder
     private func aboutSection(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("A propos")
+            Text("About")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(Theme.foreground)
                 .padding(.horizontal, 16)
@@ -281,7 +281,7 @@ struct ArtistDetailView: View {
                             Text("\(formatNumber(pop * 10000))")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(Theme.foreground)
-                            Text("auditeurs mensuels")
+                            Text("monthly listeners")
                                 .font(.system(size: 13))
                                 .foregroundColor(Theme.mutedForeground)
                         }
@@ -328,7 +328,7 @@ struct ArtistDetailView: View {
                             Text("\(formatNumber(pop * 10000))")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(Theme.foreground)
-                            Text("auditeurs mensuels")
+                            Text("monthly listeners")
                                 .font(.system(size: 14))
                                 .foregroundColor(Theme.mutedForeground)
                         }
@@ -350,7 +350,7 @@ struct ArtistDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Fermer") { showFullBio = false }
+                    Button("Close") { showFullBio = false }
                         .foregroundColor(Theme.foreground)
                 }
             }
@@ -363,7 +363,7 @@ struct ArtistDetailView: View {
 
     private var similarArtistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Les fans aiment aussi")
+            Text("Fans also like")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(Theme.foreground)
                 .padding(.horizontal, 16)
@@ -461,7 +461,7 @@ struct AlbumCard: View {
                 }
                 if let count = album.numberOfTracks {
                     Text("·")
-                    Text("\(count) titres")
+                    Text("\(count) tracks")
                 }
             }
             .font(.system(size: 11))

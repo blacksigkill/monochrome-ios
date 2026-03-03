@@ -17,7 +17,7 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header with sort
             HStack {
-                Text("Favoris")
+                Text("Favorites")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundColor(Theme.foreground)
 
@@ -28,7 +28,7 @@ struct LibraryView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.arrow.down")
                                 .font(.system(size: 12))
-                            Text(sortNewest ? "Recents" : "A-Z")
+                            Text(sortNewest ? "Recent" : "A-Z")
                                 .font(.system(size: 13, weight: .medium))
                         }
                         .foregroundColor(Theme.mutedForeground)
@@ -45,7 +45,7 @@ struct LibraryView: View {
                     Image(systemName: "heart")
                         .font(.system(size: 52, weight: .light))
                         .foregroundColor(Theme.mutedForeground.opacity(0.4))
-                    Text("Tes titres favoris apparaitront ici")
+                    Text("Your favorite tracks will appear here")
                         .font(.system(size: 16))
                         .foregroundColor(Theme.mutedForeground)
                         .multilineTextAlignment(.center)
@@ -54,7 +54,7 @@ struct LibraryView: View {
                 Spacer()
             } else {
                 // Track count
-                Text("\(libraryManager.favoriteTracks.count) titre\(libraryManager.favoriteTracks.count > 1 ? "s" : "")")
+                Text("\(libraryManager.favoriteTracks.count) track\(libraryManager.favoriteTracks.count > 1 ? "s" : "")")
                     .font(.system(size: 13))
                     .foregroundColor(Theme.mutedForeground)
                     .padding(.horizontal, 16)
