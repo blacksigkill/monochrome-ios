@@ -11,41 +11,39 @@ struct MainTabView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ZStack {
-                // Tab content + mini player + tab bar
+            ZStack(alignment: .bottom) {
+                // Tab content — fills entire screen, scrolls behind bar
+                Group {
+                    switch selectedTab {
+                    case 0: HomeView(navigationPath: $navigationPath)
+                    case 1: LibraryView(navigationPath: $navigationPath)
+                    default: HomeView(navigationPath: $navigationPath)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // Glassmorphic bottom bar (mini player + tabs)
                 VStack(spacing: 0) {
-                    Group {
-                        switch selectedTab {
-                        case 0: HomeView(navigationPath: $navigationPath)
-                        case 1: SearchView(navigationPath: $navigationPath)
-                        case 2: LibraryView(navigationPath: $navigationPath)
-                        default: HomeView(navigationPath: $navigationPath)
-                        }
+                    if audioPlayer.currentTrack != nil {
+                        MiniPlayerView(expansion: $playerExpansion)
+                            .opacity(playerExpansion > 0 ? 0 : 1)
+                            .allowsHitTesting(playerExpansion == 0)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    VStack(spacing: 0) {
-                        if audioPlayer.currentTrack != nil {
-                            MiniPlayerView(expansion: $playerExpansion)
-                                .opacity(playerExpansion > 0 ? 0 : 1)
-                                .allowsHitTesting(playerExpansion == 0)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-
-                        HStack {
-                            TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
-                            TabBarButton(icon: "magnifyingglass", label: "Search", isSelected: selectedTab == 1) { selectedTab = 1 }
-                            TabBarButton(icon: "books.vertical.fill", label: "Library", isSelected: selectedTab == 2) { selectedTab = 2 }
-                        }
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
-                        .background(
-                            LinearGradient(
-                                colors: [Theme.background, Theme.background.opacity(0.98)],
-                                startPoint: .bottom, endPoint: .top
-                            )
-                        )
+                    HStack {
+                        TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
+                        TabBarButton(icon: "books.vertical.fill", label: "Library", isSelected: selectedTab == 1) { selectedTab = 1 }
                     }
+                    .padding(.top, 8)
+                    .padding(.bottom, -15)
+                }
+                .padding(.bottom, -15)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 0.5)
                 }
 
                 // Full-screen player overlay
@@ -78,7 +76,6 @@ struct MainTabView: View {
     private var closeDragGesture: some Gesture {
         DragGesture(minimumDistance: 10)
             .onChanged { value in
-                // Only track downward drags
                 dragOffset = max(0, value.translation.height)
             }
             .onEnded { value in
