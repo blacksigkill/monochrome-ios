@@ -1,85 +1,133 @@
 import SwiftUI
 
 struct NowPlayingView: View {
-    @Environment(\.dismiss) var dismiss
+    @Binding var expansion: CGFloat
+
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
 
+    // Real screen dimensions — always correct regardless of view hierarchy
+    private let screenW = UIScreen.main.bounds.width
+    private let screenH = UIScreen.main.bounds.height
+    private var safeT: CGFloat {
+        (UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .compactMap { $0.keyWindow }
+            .first?.safeAreaInsets.top) ?? 59
+    }
+    private var safeB: CGFloat {
+        (UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .compactMap { $0.keyWindow }
+            .first?.safeAreaInsets.bottom) ?? 34
+    }
+
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Background layers - ignore safe area
-                backgroundLayer
-                Color.black.opacity(0.25).ignoresSafeArea()
+        let usable = screenH - safeT - safeB
+        let padX: CGFloat = 24
+        // Art: 42% of usable height, capped at content width
+        let artSize = min(screenW - padX * 2, usable * 0.42)
 
-                // Content - respects safe area
-                let artSize = min(geo.size.width - 56, geo.size.height * 0.38)
+        // Layout budget (% of usable height):
+        //   handle  3%  +  topBar  6%  +  gap  2%
+        //   art    42%  (or less if width-capped)
+        //   gap     3%  +  info   7%  +  gap  1.5%
+        //   prog    7%  +  gap    2%  +  ctrl 11%
+        //   gap     1%  +  queue  3.5%
+        //   TOTAL: 89% → 11% breathing room
 
-                VStack(spacing: 0) {
-                    // Top bar
-                    topBar
-                        .padding(.top, 8)
+        ZStack {
+            backgroundLayer
 
-                    Spacer(minLength: 12)
+            VStack(spacing: 0) {
+                // -- Handle: 3% --
+                Capsule()
+                    .fill(.white.opacity(0.4))
+                    .frame(width: 36, height: 5)
+                    .frame(height: usable * 0.03)
 
-                    // Album art - constrained size
-                    albumArt(size: artSize)
+                // -- Top bar: 6% --
+                topBar
+                    .frame(height: usable * 0.06)
 
-                    Spacer(minLength: 20).frame(maxHeight: 32)
+                // -- Gap: 2% --
+                Color.clear
+                    .frame(height: usable * 0.02)
 
-                    // Track info + progress + controls
-                    VStack(spacing: 20) {
-                        trackInfo
-                        progressBar
-                        controls
-                    }
+                // -- Album art: 42% (capped at width) --
+                albumArt
+                    .frame(width: artSize, height: artSize)
 
-                    Spacer(minLength: 8)
+                // -- Gap: 3% --
+                Color.clear
+                    .frame(height: usable * 0.03)
 
-                    // Queue info
-                    queueInfo
-                        .padding(.bottom, 8)
-                }
-                .padding(.horizontal, 28)
+                // -- Track info: 7% --
+                trackInfo
+                    .frame(height: usable * 0.07)
+
+                // -- Gap: 1.5% --
+                Color.clear
+                    .frame(height: usable * 0.015)
+
+                // -- Progress: 7% --
+                progressBar
+                    .frame(height: usable * 0.07)
+
+                // -- Gap: 2% --
+                Color.clear
+                    .frame(height: usable * 0.02)
+
+                // -- Controls: 11% --
+                controls
+                    .frame(height: usable * 0.11)
+
+                // -- Gap: 1% --
+                Color.clear
+                    .frame(height: usable * 0.01)
+
+                // -- Queue: 3.5% --
+                queueInfo
+                    .frame(height: usable * 0.035)
             }
+            .padding(.horizontal, padX)
+            .padding(.top, safeT)
+            .padding(.bottom, safeB)
         }
-        .preferredColorScheme(.dark)
-        .gesture(
-            DragGesture()
-                .onEnded { value in
-                    if value.translation.height > 120 { dismiss() }
-                }
-        )
+        .frame(width: screenW, height: screenH)
+        .clipped()
     }
 
     // MARK: - Background
 
     private var backgroundLayer: some View {
-        Group {
+        ZStack {
+            Theme.background
             if let coverUrl = audioPlayer.currentCoverUrl {
                 AsyncImage(url: coverUrl) { phase in
                     if let image = phase.image {
                         image.resizable()
-                             .aspectRatio(contentMode: .fill)
-                             .blur(radius: 80)
-                             .brightness(-0.4)
-                             .scaleEffect(1.5)
-                    } else {
-                        Theme.background
+                            .aspectRatio(contentMode: .fill)
+                            .blur(radius: 80)
+                            .brightness(-0.4)
+                            .scaleEffect(1.5)
                     }
                 }
-            } else {
-                Theme.background
             }
+            Color.black.opacity(0.25)
         }
-        .ignoresSafeArea()
+        .frame(width: screenW, height: screenH)
     }
 
     // MARK: - Top Bar
 
     private var topBar: some View {
         HStack {
-            Button(action: { dismiss() }) {
+            Button(action: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    expansion = 0
+                }
+            }) {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
@@ -103,29 +151,23 @@ struct NowPlayingView: View {
 
             Spacer()
 
-            Button(action: {}) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
-                    .frame(width: 44, height: 44)
-            }
+            Color.clear.frame(width: 44, height: 44)
         }
     }
 
     // MARK: - Album Art
 
-    private func albumArt(size: CGFloat) -> some View {
+    private var albumArt: some View {
         AsyncImage(url: audioPlayer.currentCoverUrl) { phase in
             if let image = phase.image {
                 image.resizable()
-                     .aspectRatio(contentMode: .fit)
+                    .aspectRatio(contentMode: .fit)
             } else {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Theme.card)
                     .aspectRatio(1, contentMode: .fit)
             }
         }
-        .frame(maxWidth: size, maxHeight: size)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
     }
@@ -133,7 +175,7 @@ struct NowPlayingView: View {
     // MARK: - Track Info
 
     private var trackInfo: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(audioPlayer.currentTrackTitle)
                     .font(.system(size: 20, weight: .bold))

@@ -3,14 +3,17 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 0
     @State private var navigationPath = NavigationPath()
+    @State private var playerExpansion: CGFloat = 0
+    @State private var dragOffset: CGFloat = 0
     @Environment(AudioPlayerService.self) private var audioPlayer
+
+    private let fullScreenH = UIScreen.main.bounds.height
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ZStack(alignment: .bottom) {
-                // Content area
+            ZStack {
+                // Tab content + mini player + tab bar
                 VStack(spacing: 0) {
-                    // Page content
                     Group {
                         switch selectedTab {
                         case 0: HomeView(navigationPath: $navigationPath)
@@ -21,14 +24,14 @@ struct MainTabView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    // Mini player + Tab bar spacer
                     VStack(spacing: 0) {
                         if audioPlayer.currentTrack != nil {
-                            MiniPlayerView()
+                            MiniPlayerView(expansion: $playerExpansion)
+                                .opacity(playerExpansion > 0 ? 0 : 1)
+                                .allowsHitTesting(playerExpansion == 0)
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
-                        // Custom tab bar
                         HStack {
                             TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
                             TabBarButton(icon: "magnifyingglass", label: "Search", isSelected: selectedTab == 1) { selectedTab = 1 }
@@ -44,6 +47,21 @@ struct MainTabView: View {
                         )
                     }
                 }
+
+                // Full-screen player overlay
+                if audioPlayer.currentTrack != nil && playerExpansion > 0 {
+                    let effectiveExp = max(0, min(1,
+                        playerExpansion - (dragOffset / fullScreenH)
+                    ))
+                    let yOffset = (1 - effectiveExp) * fullScreenH
+
+                    NowPlayingView(expansion: $playerExpansion)
+                        .offset(y: yOffset)
+                        .allowsHitTesting(effectiveExp > 0.3)
+                        .gesture(closeDragGesture)
+                        .transition(.identity)
+                        .ignoresSafeArea()
+                }
             }
             .background(Theme.background)
             .navigationBarHidden(true)
@@ -52,6 +70,30 @@ struct MainTabView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .ignoresSafeArea()
+    }
+
+    // MARK: - Close drag (drag down from full player)
+
+    private var closeDragGesture: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                // Only track downward drags
+                dragOffset = max(0, value.translation.height)
+            }
+            .onEnded { value in
+                let velocity = value.predictedEndTranslation.height - value.translation.height
+                let dragDown = value.translation.height / fullScreenH
+
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                    if dragDown > 0.2 || velocity > 400 {
+                        playerExpansion = 0
+                    } else {
+                        playerExpansion = 1
+                    }
+                    dragOffset = 0
+                }
+            }
     }
 }
 
