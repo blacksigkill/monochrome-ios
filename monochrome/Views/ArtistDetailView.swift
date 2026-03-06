@@ -50,7 +50,7 @@ struct ArtistDetailView: View {
 
             ZStack(alignment: .bottomLeading) {
                 // Artist image with parallax
-                AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 750)) { phase in
+                AsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
                     if let image = phase.image {
                         image.resizable()
                              .aspectRatio(contentMode: .fill)
@@ -76,7 +76,7 @@ struct ArtistDetailView: View {
 
                 // Name + info
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(artist.name)
+                    Text(artistDetail?.name ?? artist.name)
                         .font(.system(size: 44, weight: .black))
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.7), radius: 10, y: 2)
@@ -266,7 +266,7 @@ struct ArtistDetailView: View {
             // Bio card with artist image
             Button(action: { showFullBio = true }) {
                 VStack(alignment: .leading, spacing: 12) {
-                    AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 480)) { phase in
+                    AsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 480)) { phase in
                         if let image = phase.image {
                             image.resizable()
                                  .aspectRatio(contentMode: .fill)
@@ -310,7 +310,7 @@ struct ArtistDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 750)) { phase in
+                    AsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
                         if let image = phase.image {
                             image.resizable()
                                  .aspectRatio(contentMode: .fill)
@@ -336,8 +336,16 @@ struct ArtistDetailView: View {
                     BioTextView(text: text) { type, id in
                         showFullBio = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            if type == "artist", let artistId = Int(id) {
-                                navigationPath.append(Artist(id: artistId, name: "", picture: nil))
+                            if type == "artist", let intId = Int(id) {
+                                navigationPath.append(Artist(id: intId, name: "", picture: nil))
+                            } else if type == "album", let intId = Int(id) {
+                                navigationPath.append(Album(id: intId, title: "", cover: nil, numberOfTracks: nil, releaseDate: nil, artist: nil, type: nil))
+                            } else if type == "track", let intId = Int(id) {
+                                Task {
+                                    if let t = try? await MonochromeAPI().fetchTrack(id: intId) {
+                                        DispatchQueue.main.async { audioPlayer.play(track: t, queue: []) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -348,7 +356,7 @@ struct ArtistDetailView: View {
                 .padding(.top, 8)
             }
             .background(Theme.background)
-            .navigationTitle(artist.name)
+            .navigationTitle(artistDetail?.name ?? artist.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -471,36 +479,12 @@ private struct BioTextView: View {
 
     var body: some View {
         let segments = parseBio(text)
-        // Use Text concatenation for flow layout
-        segments.reduce(Text("")) { result, segment in
-            switch segment {
-            case .text(let str):
-                return result + Text(str)
-                    .font(.system(size: 15))
-                    .foregroundColor(Theme.foreground.opacity(0.9))
-            case .link(_, _, let name):
-                return result + Text(name)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Theme.foreground)
-                    .underline()
-            }
-        }
-        .lineSpacing(4)
-        // Overlay with invisible tappable buttons for each link
-        .overlay(
-            linkOverlay(segments: segments)
-        )
-    }
-
-    @ViewBuilder
-    private func linkOverlay(segments: [BioSegment]) -> some View {
-        // For links in bio text, we use .environment(\.openURL) approach
-        // by converting to AttributedString with link attributes
         let attributed = buildAttributedString(segments)
+        
         Text(attributed)
             .font(.system(size: 15))
             .lineSpacing(4)
-            .foregroundColor(.clear) // invisible, just for tap handling
+            .tint(Theme.foreground) // Link color
             .environment(\.openURL, OpenURLAction { url in
                 if url.scheme == "monochrome" {
                     let parts = url.pathComponents.filter { $0 != "/" }
@@ -518,10 +502,18 @@ private struct BioTextView: View {
         for segment in segments {
             switch segment {
             case .text(let str):
-                result += AttributedString(str)
+                var attr = AttributedString(str)
+                attr.foregroundColor = Theme.foreground.opacity(0.9)
+                result += attr
             case .link(let type, let id, let name):
                 var attr = AttributedString(name)
+                // Use a custom scheme to trap the tap
                 attr.link = URL(string: "monochrome:///\(type)/\(id)")
+                attr.underlineStyle = .single
+                // We use .font to make it bold, color is handled by .tint on Text
+                var container = AttributeContainer()
+                container.font = .system(size: 15, weight: .semibold)
+                attr.mergeAttributes(container)
                 result += attr
             }
         }

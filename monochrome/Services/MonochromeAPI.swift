@@ -237,6 +237,18 @@ class MonochromeAPI {
         let urls: [String]
     }
 
+    func fetchTrack(id: Int) async throws -> Track {
+        guard let url = URL(string: "https://api.tidal.com/v1/tracks/\(id)?countryCode=GB") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.setValue("Monochrome-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("txNoH4kkV41MfH25", forHTTPHeaderField: "X-Tidal-Token")
+
+        let (data, response) = try await urlSession.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+
+        return try JSONDecoder().decode(Track.self, from: data)
+    }
+
     func fetchStreamUrl(trackId: Int) async throws -> String? {
         guard let url = URL(string: "\(baseURL)/track/?id=\(trackId)&quality=HIGH") else { throw URLError(.badURL) }
 
