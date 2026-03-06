@@ -23,6 +23,49 @@ class MonochromeAPI {
         return try JSONDecoder().decode(SearchResponse.self, from: data).data?.items ?? []
     }
 
+    func searchAll(query: String) async throws -> (artists: [Artist], albums: [Album], tracks: [Track]) {
+        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let tracksUrl = URL(string: "\(baseURL)/search/?s=\(q)"),
+              let artistsUrl = URL(string: "\(baseURL)/search/?a=\(q)"),
+              let albumsUrl = URL(string: "\(baseURL)/search/?al=\(q)") else { throw URLError(.badURL) }
+
+        async let tracksTask = urlSession.data(for: request(for: tracksUrl))
+        async let artistsTask = urlSession.data(for: request(for: artistsUrl))
+        async let albumsTask = urlSession.data(for: request(for: albumsUrl))
+
+        let (tData, tResp) = try await tracksTask
+        var tracks: [Track] = []
+        if (tResp as? HTTPURLResponse)?.statusCode == 200 {
+            tracks = (try? JSONDecoder().decode(SearchResponse.self, from: tData).data?.items) ?? []
+        }
+
+        let (aData, aResp) = try await artistsTask
+        var artists: [Artist] = []
+        if (aResp as? HTTPURLResponse)?.statusCode == 200,
+           let json = try? JSONSerialization.jsonObject(with: aData) as? [String: Any],
+           let data = json["data"] as? [String: Any],
+           let artistsDict = data["artists"] as? [String: Any],
+           let items = artistsDict["items"] as? [[String: Any]],
+           let arrData = try? JSONSerialization.data(withJSONObject: items),
+           let decoded = try? JSONDecoder().decode([Artist].self, from: arrData) {
+            artists = decoded
+        }
+
+        let (alData, alResp) = try await albumsTask
+        var albums: [Album] = []
+        if (alResp as? HTTPURLResponse)?.statusCode == 200,
+           let json = try? JSONSerialization.jsonObject(with: alData) as? [String: Any],
+           let data = json["data"] as? [String: Any],
+           let albumsDict = data["albums"] as? [String: Any],
+           let items = albumsDict["items"] as? [[String: Any]],
+           let arrData = try? JSONSerialization.data(withJSONObject: items),
+           let decoded = try? JSONDecoder().decode([Album].self, from: arrData) {
+            albums = decoded
+        }
+
+        return (artists, albums, tracks)
+    }
+
     // MARK: - Artist (two parallel calls, same as web app)
     // Call 1: /artist/?id={id}  -> { artist: { id, name, picture, popularity, ... }, cover: {...} }
     // Call 2: /artist/?f={id}   -> { albums: { items: [...] }, tracks: [...] }
