@@ -21,104 +21,139 @@ struct SearchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             // Main content (Scrolled underneath the floating bar)
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    if isSearching {
-                        ProgressView().tint(Theme.mutedForeground)
-                            .padding(.top, 100)
-                    } else if hasResults {
-                        
-                        // ARTISTS SECTION
-                        if !searchArtists.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Artistes")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Theme.foreground)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 20)
-                                
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    LazyHStack(spacing: 16) {
-                                        ForEach(searchArtists) { artist in
-                                            NavigationLink(value: artist) {
-                                                ArtistSearchResultRow(artist: artist)
-                                            }
-                                            .simultaneousGesture(TapGesture().onEnded { isFocused = false })
-                                        }
-                                    }
-                                    .padding(.horizontal, 16)
-                                }
-                                .frame(height: 140)
-                            }
-                        }
-                        
-                        // ALBUMS SECTION
-                        if !searchAlbums.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Albums")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Theme.foreground)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 10)
-                                
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    LazyHStack(spacing: 16) {
-                                        ForEach(searchAlbums) { album in
-                                            NavigationLink(value: album) {
-                                                AlbumSearchResultRow(album: album)
-                                            }
-                                            .simultaneousGesture(TapGesture().onEnded { isFocused = false })
-                                        }
-                                    }
-                                    .padding(.horizontal, 16)
-                                }
-                                .frame(height: 180)
-                            }
-                        }
-                        
-                        // TRACKS SECTION
-                        if !searchTracks.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Titres")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Theme.foreground)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 10)
-                                
-                                LazyVStack(spacing: 0) {
-                                    ForEach(Array(searchTracks.enumerated()), id: \.element.id) { index, track in
-                                        let queue = Array(searchTracks.dropFirst(index + 1))
-                                        let previous = Array(searchTracks.prefix(index))
-                                        TrackRow(track: track, queue: queue, previousTracks: previous, showCover: true, navigationPath: $navigationPath)
-                                    }
-                                }
-                            }
-                            .padding(.top, 10)
-                        }
-                        
-                        // Spacer to ensure last items can be scrolled past the miniplayer and tab bar
-                        Color.clear.frame(height: 140)
-                    } else if hasSearched {
-                        VStack(spacing: 10) {
-                            Text("No results for")
-                                .font(.system(size: 16))
-                                .foregroundColor(Theme.mutedForeground)
-                            Text("\"\(searchText)\"")
-                                .font(.system(size: 16, weight: .semibold))
+            List {
+                if isSearching {
+                    ProgressView().tint(Theme.mutedForeground)
+                        .padding(.top, 100)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                } else if hasResults {
+                    
+                    // ARTISTS SECTION
+                    if !searchArtists.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Artistes")
+                                .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(Theme.foreground)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 20)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 16) {
+                                    ForEach(searchArtists) { artist in
+                                        NavigationLink(value: artist) {
+                                            ArtistSearchResultRow(artist: artist)
+                                        }
+                                        .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
+                            .frame(height: 140)
                         }
-                        .padding(.top, 100)
-                    } else {
-                        VStack(spacing: 10) {
-                            Text("Search for tracks, artists...")
-                                .font(.system(size: 16))
-                                .foregroundColor(Theme.mutedForeground)
-                        }
-                        .padding(.top, 100)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
+                    
+                    // ALBUMS SECTION
+                    if !searchAlbums.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Albums")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(Theme.foreground)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 10)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 16) {
+                                    ForEach(searchAlbums) { album in
+                                        NavigationLink(value: album) {
+                                            AlbumSearchResultRow(album: album)
+                                        }
+                                        .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
+                            .frame(height: 180)
+                        }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                    
+                    // TRACKS SECTION
+                    if !searchTracks.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Titres")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(Theme.foreground)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 10)
+                        }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        
+                        ForEach(Array(searchTracks.enumerated()), id: \.element.id) { index, track in
+                            let queue = Array(searchTracks.dropFirst(index + 1))
+                            let previous = Array(searchTracks.prefix(index))
+                            TrackRow(track: track, queue: queue, previousTracks: previous, showCover: true, navigationPath: $navigationPath)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                    Button {
+                                        audioPlayer.playNext(track: track)
+                                    } label: {
+                                        Label("Play Next", systemImage: "text.insert")
+                                    }
+                                    .tint(.blue)
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button {
+                                        audioPlayer.addToQueue(track: track)
+                                    } label: {
+                                        Label("Add to Queue", systemImage: "text.append")
+                                    }
+                                    .tint(.green)
+                                }
+                        }
+                    }
+                    
+                    // Spacer to ensure last items can be scrolled past the miniplayer and tab bar
+                    Color.clear.frame(height: 140)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                } else if hasSearched {
+                    VStack(spacing: 10) {
+                        Text("No results for")
+                            .font(.system(size: 16))
+                            .foregroundColor(Theme.mutedForeground)
+                        Text("\"\(searchText)\"")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Theme.foreground)
+                    }
+                    .padding(.top, 100)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                } else {
+                    VStack(spacing: 10) {
+                        Text("Search for tracks, artists...")
+                            .font(.system(size: 16))
+                            .foregroundColor(Theme.mutedForeground)
+                    }
+                    .padding(.top, 100)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
-                .frame(maxWidth: .infinity, minHeight: UIScreen.main.bounds.height - 200, alignment: .top)
             }
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 0)
             .safeAreaPadding(.top, 70) 
             
             searchBar

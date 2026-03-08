@@ -19,13 +19,18 @@ struct AlbumDetailView: View {
             if isLoading {
                 ProgressView().tint(Theme.mutedForeground)
             } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        albumHeader
-                        trackList
-                        Spacer(minLength: 120)
-                    }
+                List {
+                    albumHeader
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    trackList
+                    Spacer(minLength: 120)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 }
+                .listStyle(.plain)
+                .environment(\.defaultMinListRowHeight, 0)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -118,16 +123,34 @@ struct AlbumDetailView: View {
 
     // MARK: - Track List
 
+    @ViewBuilder
     private var trackList: some View {
-        LazyVStack(spacing: 0) {
-            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                let queue = Array(tracks.dropFirst(index + 1))
-                let previous = Array(tracks.prefix(index))
-                TrackRow(
-                    track: track, queue: queue, previousTracks: previous,
-                    showCover: false, showIndex: index + 1,
-                    navigationPath: $navigationPath
-                )
+        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+            let queue = Array(tracks.dropFirst(index + 1))
+            let previous = Array(tracks.prefix(index))
+            TrackRow(
+                track: track, queue: queue, previousTracks: previous,
+                showCover: false, showIndex: index + 1,
+                navigationPath: $navigationPath
+            )
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                Button {
+                    audioPlayer.playNext(track: track)
+                } label: {
+                    Label("Play Next", systemImage: "text.insert")
+                }
+                .tint(.blue)
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    audioPlayer.addToQueue(track: track)
+                } label: {
+                    Label("Add to Queue", systemImage: "text.append")
+                }
+                .tint(.green)
             }
         }
     }

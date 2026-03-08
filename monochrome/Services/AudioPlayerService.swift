@@ -101,6 +101,14 @@ class AudioPlayerService {
         saveState()
     }
 
+    func addToQueue(track: Track) {
+        queuedTracks.append(track)
+        if isShuffled {
+            originalQueue.append(track)
+        }
+        saveState()
+    }
+
     func play(track: Track, queue: [Track] = [], previousTracks: [Track] = []) {
         // Clean up previous observer if any
         removeTimeObserver()

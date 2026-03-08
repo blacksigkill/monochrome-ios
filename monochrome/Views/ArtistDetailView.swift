@@ -23,12 +23,15 @@ struct ArtistDetailView: View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    heroHeader
-                    contentSection
-                }
+            List {
+                heroHeader
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                contentSection
             }
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 0)
             .ignoresSafeArea(edges: .top)
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -94,39 +97,58 @@ struct ArtistDetailView: View {
 
     // MARK: - Content
 
+    @ViewBuilder
     private var contentSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            // Action buttons row
-            actionButtons
+        // Action buttons row
+        actionButtons
+            .padding(.top, 12)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
 
-            // Popular tracks
-            if let detail = artistDetail, !detail.topTracks.isEmpty {
-                popularTracks(detail.topTracks)
-            } else if artistDetail == nil {
-                // Still loading
-                ProgressView().tint(Theme.mutedForeground)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 16)
-            }
-
-            // Discography
-            if let detail = artistDetail, (!detail.albums.isEmpty || !detail.eps.isEmpty) {
-                discography(albums: detail.albums, eps: detail.eps)
-            }
-
-            // About / Bio
-            if let bioText = bio, !bioText.isEmpty {
-                aboutSection(bioText)
-            }
-
-            // Similar artists
-            if !similarArtists.isEmpty {
-                similarArtistsSection
-            }
-
-            Spacer(minLength: 120)
+        // Popular tracks
+        if let detail = artistDetail, !detail.topTracks.isEmpty {
+            popularTracks(detail.topTracks)
+        } else if artistDetail == nil {
+            // Still loading
+            ProgressView().tint(Theme.mutedForeground)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 16)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
         }
-        .padding(.top, 12)
+
+        // Discography
+        if let detail = artistDetail, (!detail.albums.isEmpty || !detail.eps.isEmpty) {
+            discography(albums: detail.albums, eps: detail.eps)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .padding(.top, 24)
+        }
+
+        // About / Bio
+        if let bioText = bio, !bioText.isEmpty {
+            aboutSection(bioText)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .padding(.top, 24)
+        }
+
+        // Similar artists
+        if !similarArtists.isEmpty {
+            similarArtistsSection
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .padding(.top, 24)
+        }
+
+        Spacer(minLength: 120)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 
     // MARK: - Action Buttons (Spotify: shuffle + play)
@@ -168,34 +190,58 @@ struct ArtistDetailView: View {
 
     @ViewBuilder
     private func popularTracks(_ tracks: [Track]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Popular")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Theme.foreground)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 4)
+        Text("Popular")
+            .font(.system(size: 18, weight: .bold))
+            .foregroundColor(Theme.foreground)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+            .padding(.top, 24)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
 
-            let displayed = showAllTracks ? tracks : Array(tracks.prefix(5))
+        let displayed = showAllTracks ? tracks : Array(tracks.prefix(5))
 
-            ForEach(Array(displayed.enumerated()), id: \.element.id) { index, track in
-                let queue = Array(tracks.dropFirst(index + 1))
-                let previous = Array(tracks.prefix(index))
-                TrackRow(
-                    track: track, queue: queue, previousTracks: previous,
-                    showCover: true, showIndex: nil,
-                    navigationPath: $navigationPath
-                )
-            }
-
-            if tracks.count > 5 {
-                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showAllTracks.toggle() } }) {
-                    Text(showAllTracks ? "Show less" : "See more")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(Theme.mutedForeground)
+        ForEach(Array(displayed.enumerated()), id: \.element.id) { index, track in
+            let queue = Array(tracks.dropFirst(index + 1))
+            let previous = Array(tracks.prefix(index))
+            TrackRow(
+                track: track, queue: queue, previousTracks: previous,
+                showCover: true, showIndex: nil,
+                navigationPath: $navigationPath
+            )
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                Button {
+                    audioPlayer.playNext(track: track)
+                } label: {
+                    Label("Play Next", systemImage: "text.insert")
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .tint(.blue)
             }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    audioPlayer.addToQueue(track: track)
+                } label: {
+                    Label("Add to Queue", systemImage: "text.append")
+                }
+                .tint(.green)
+            }
+        }
+
+        if tracks.count > 5 {
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showAllTracks.toggle() } }) {
+                Text(showAllTracks ? "Show less" : "See more")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Theme.mutedForeground)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
         }
     }
 
