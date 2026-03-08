@@ -43,6 +43,7 @@ struct SearchView: View {
                                             NavigationLink(value: artist) {
                                                 ArtistSearchResultRow(artist: artist)
                                             }
+                                            .simultaneousGesture(TapGesture().onEnded { isFocused = false })
                                         }
                                     }
                                     .padding(.horizontal, 16)
@@ -66,6 +67,7 @@ struct SearchView: View {
                                             NavigationLink(value: album) {
                                                 AlbumSearchResultRow(album: album)
                                             }
+                                            .simultaneousGesture(TapGesture().onEnded { isFocused = false })
                                         }
                                     }
                                     .padding(.horizontal, 16)
@@ -136,6 +138,8 @@ struct SearchView: View {
         }
         .ignoresSafeArea(.all, edges: .bottom)
         .ignoresSafeArea(.keyboard)
+        .onTapGesture { isFocused = false }
+        .onChange(of: navigationPath) { isFocused = false }
     }
 
     private var searchBar: some View {
