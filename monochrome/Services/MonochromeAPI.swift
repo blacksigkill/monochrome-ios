@@ -100,7 +100,7 @@ class MonochromeAPI {
 
         let name = artistObj["name"] as? String ?? "Unknown"
         let picture = artistObj["picture"] as? String
-        let popularity = artistObj["popularity"] as? Int
+        let popularity = (artistObj["popularity"] as? NSNumber)?.doubleValue
 
         // Parse content (tracks + albums)
         var topTracks: [Track] = []
@@ -356,7 +356,7 @@ struct ArtistDetail {
     let id: Int
     let name: String
     let picture: String?
-    let popularity: Int?
+    let popularity: Double?
     let topTracks: [Track]
     let albums: [Album]
     let eps: [Album]

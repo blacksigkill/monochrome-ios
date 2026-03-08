@@ -7,7 +7,7 @@ struct Track: Identifiable, Codable, Hashable {
     let artist: Artist?
     let album: Album?
     let streamStartDate: String?
-    let popularity: Int?
+    let popularity: Double?
 
     var releaseYear: String? {
         guard let dateStr = streamStartDate, dateStr.count >= 4 else { return nil }
@@ -22,7 +22,7 @@ struct Artist: Identifiable, Codable, Hashable {
     let id: Int
     let name: String
     let picture: String?
-    let popularity: Int?
+    let popularity: Double?
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: Artist, rhs: Artist) -> Bool { lhs.id == rhs.id }
@@ -64,7 +64,7 @@ struct ArtistData: Codable {
     let id: Int?
     let name: String?
     let picture: String?
-    let popularity: Int?
+    let popularity: Double?
     let topTracks: [Track]?
     let albums: [Album]?
 

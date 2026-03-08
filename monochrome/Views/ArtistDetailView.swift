@@ -79,7 +79,7 @@ struct ArtistDetailView: View {
                         .lineLimit(2)
 
                     if let pop = artistDetail?.popularity, pop > 0 {
-                        Text("\(formatNumber(pop * 10000)) monthly listeners")
+                        Text("\(formatNumber(Int(pop * 10000))) monthly listeners")
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.7))
                     }
@@ -278,7 +278,7 @@ struct ArtistDetailView: View {
 
                     if let pop = artistDetail?.popularity, pop > 0 {
                         HStack(spacing: 4) {
-                            Text("\(formatNumber(pop * 10000))")
+                            Text("\(formatNumber(Int(pop * 10000)))")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(Theme.foreground)
                             Text("monthly listeners")
@@ -323,7 +323,7 @@ struct ArtistDetailView: View {
 
                     if let pop = artistDetail?.popularity, pop > 0 {
                         HStack(spacing: 4) {
-                            Text("\(formatNumber(pop * 10000))")
+                            Text("\(formatNumber(Int(pop * 10000)))")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(Theme.foreground)
                             Text("monthly listeners")
