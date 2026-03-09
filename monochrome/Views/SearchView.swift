@@ -14,12 +14,63 @@ struct SearchView: View {
     @FocusState private var isFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
     @State private var searchHistory: [String] = []
+    @State private var suggestions: [Suggestion] = []
+    @State private var autocompleteTask: Task<Void, Never>?
 
     private let historyKey = "search_history"
     private let maxHistory = 20
 
     private var hasResults: Bool {
         !searchTracks.isEmpty || !searchArtists.isEmpty || !searchAlbums.isEmpty
+    }
+
+    private var showSuggestions: Bool {
+        isFocused && !suggestions.isEmpty
+    }
+
+    private enum Suggestion: Identifiable {
+        case history(String)
+        case artist(Artist)
+        case album(Album)
+        case track(Track)
+
+        var id: String {
+            switch self {
+            case .history(let q): return "h_\(q)"
+            case .artist(let a): return "a_\(a.id)"
+            case .album(let a): return "al_\(a.id)"
+            case .track(let t): return "t_\(t.id)"
+            }
+        }
+
+        var primaryText: String {
+            switch self {
+            case .history(let q): return q
+            case .artist(let a): return a.name
+            case .album(let a): return a.title
+            case .track(let t): return t.title
+            }
+        }
+
+        var secondaryText: String? {
+            switch self {
+            case .history: return nil
+            case .artist: return "Artist"
+            case .album(let a): return a.artist?.name ?? "Album"
+            case .track(let t): return t.artist?.name ?? "Track"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .history: return "clock.arrow.circlepath"
+            case .artist: return "person.fill"
+            case .album: return "square.stack"
+            case .track: return "music.note"
+            }
+        }
+
+        var fillText: String { primaryText }
     }
 
     var body: some View {
@@ -206,11 +257,21 @@ struct SearchView: View {
             .environment(\.defaultMinListRowHeight, 0)
             .safeAreaPadding(.top, 70) 
             
-            searchBar
+            VStack(spacing: 0) {
+                searchBar
+
+                if showSuggestions {
+                    suggestionsDropdown
+                        .transition(.opacity)
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background)
         .offset(y: keyboardHeight)
+        .onChange(of: searchText) { _, newValue in
+            updateSuggestions(query: newValue)
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
             if let keyboardFrame: NSValue = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
                 withAnimation(.easeOut(duration: 0.25)) {
@@ -249,6 +310,8 @@ struct SearchView: View {
                         searchArtists = []
                         searchAlbums = []
                         hasSearched = false
+                        autocompleteTask?.cancel()
+                        suggestions = []
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16))
@@ -274,6 +337,8 @@ struct SearchView: View {
         isSearching = true
         hasSearched = true
         isFocused = false
+        autocompleteTask?.cancel()
+        suggestions = []
         addToHistory(query)
 
         Task {
@@ -298,6 +363,164 @@ struct SearchView: View {
 
     private func loadHistory() {
         searchHistory = UserDefaults.standard.stringArray(forKey: historyKey) ?? []
+    }
+
+    // MARK: - Autocomplete
+
+    private var suggestionsDropdown: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                if index > 0 {
+                    Divider().opacity(0.15)
+                        .padding(.horizontal, 16)
+                }
+                suggestionRow(suggestion)
+            }
+        }
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
+        .padding(.horizontal, 16)
+        .padding(.top, 2)
+    }
+
+    private func suggestionRow(_ suggestion: Suggestion) -> some View {
+        Button {
+            handleSuggestionTap(suggestion)
+        } label: {
+            HStack(spacing: 12) {
+                suggestionIcon(suggestion)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(suggestion.primaryText)
+                        .font(.system(size: 15))
+                        .foregroundColor(Theme.foreground)
+                        .lineLimit(1)
+                    if let secondary = suggestion.secondaryText {
+                        Text(secondary)
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.mutedForeground)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    searchText = suggestion.fillText
+                } label: {
+                    Image(systemName: "arrow.up.left")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Theme.mutedForeground)
+                        .frame(width: 32, height: 32)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func suggestionIcon(_ suggestion: Suggestion) -> some View {
+        switch suggestion {
+        case .artist(let artist):
+            AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 160)) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(Theme.mutedForeground)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.secondary)
+                }
+            }
+            .frame(width: 36, height: 36)
+            .clipShape(Circle())
+        case .album(let album):
+            AsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover, size: 160)) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    Image(systemName: "square.stack")
+                        .font(.system(size: 13))
+                        .foregroundColor(Theme.mutedForeground)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.secondary)
+                }
+            }
+            .frame(width: 36, height: 36)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        default:
+            Image(systemName: suggestion.icon)
+                .font(.system(size: 15))
+                .foregroundColor(Theme.mutedForeground)
+                .frame(width: 36, height: 36)
+                .background(Theme.secondary)
+                .clipShape(Circle())
+        }
+    }
+
+    private func handleSuggestionTap(_ suggestion: Suggestion) {
+        autocompleteTask?.cancel()
+        suggestions = []
+
+        switch suggestion {
+        case .history(let query):
+            searchText = query
+            performSearch()
+        case .artist(let artist):
+            isFocused = false
+            navigationPath.append(artist)
+        case .album(let album):
+            isFocused = false
+            navigationPath.append(album)
+        case .track(let track):
+            isFocused = false
+            audioPlayer.play(track: track, queue: [])
+        }
+    }
+
+    private func updateSuggestions(query: String) {
+        autocompleteTask?.cancel()
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+
+        if trimmed.isEmpty {
+            suggestions = []
+            return
+        }
+
+        // Instant: history matches
+        let historyMatches = searchHistory
+            .filter { $0.localizedCaseInsensitiveContains(trimmed) }
+            .prefix(3)
+            .map { Suggestion.history($0) }
+        suggestions = Array(historyMatches)
+
+        guard trimmed.count >= 2 else { return }
+
+        autocompleteTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+
+            do {
+                let r = try await MonochromeAPI().searchAll(query: trimmed)
+                guard !Task.isCancelled else { return }
+
+                var results: [Suggestion] = Array(historyMatches)
+                results += r.artists.prefix(3).map { .artist($0) }
+                results += r.albums.prefix(2).map { .album($0) }
+                results += r.tracks.prefix(3).map { .track($0) }
+
+                await MainActor.run {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        suggestions = results
+                    }
+                }
+            } catch {}
+        }
     }
 }
 
