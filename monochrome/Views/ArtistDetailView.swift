@@ -12,6 +12,7 @@ struct ArtistDetailView: View {
     @State private var showAllTracks = false
     @State private var showFullBio = false
     @State private var discoFilter: DiscoFilter = .all
+    @State private var isRefreshing = false
 
     enum DiscoFilter: String, CaseIterable {
         case all = "All"
@@ -109,8 +110,7 @@ struct ArtistDetailView: View {
         // Popular tracks
         if let detail = artistDetail, !detail.topTracks.isEmpty {
             popularTracks(detail.topTracks)
-        } else if artistDetail == nil {
-            // Still loading
+        } else if isRefreshing {
             ProgressView().tint(Theme.mutedForeground)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 16)
@@ -409,20 +409,18 @@ struct ArtistDetailView: View {
                 .padding(.horizontal, 16)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 16) {
+                HStack(spacing: 16) {
                     ForEach(similarArtists) { similarArtist in
                         Button(action: { navigationPath.append(similarArtist) }) {
                             VStack(spacing: 8) {
-                                AsyncImage(url: MonochromeAPI().getImageUrl(id: similarArtist.picture, size: 320)) { phase in
-                                    if let image = phase.image {
-                                        image.resizable().aspectRatio(contentMode: .fill)
-                                    } else {
-                                        Circle().fill(Theme.secondary)
-                                            .overlay(
-                                                Image(systemName: "person.fill")
-                                                    .foregroundColor(Theme.mutedForeground.opacity(0.3))
-                                            )
-                                    }
+                                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: similarArtist.picture, size: 320)) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Circle().fill(Theme.secondary)
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(Theme.mutedForeground.opacity(0.3))
+                                        )
                                 }
                                 .frame(width: 120, height: 120)
                                 .clipShape(Circle())
@@ -433,6 +431,7 @@ struct ArtistDetailView: View {
                                     .lineLimit(1)
                             }
                             .frame(width: 120)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -442,36 +441,76 @@ struct ArtistDetailView: View {
         }
     }
 
-    // MARK: - Data Loading
+    // MARK: - Data Loading (cache-then-network)
 
     private func loadAllData() async {
-        // Load each section independently for progressive rendering
-        async let artistTask: () = loadArtistDetail()
-        async let bioTask: () = loadBio()
-        async let similarTask: () = loadSimilar()
+        let cache = CacheService.shared
+        loadFromCache()
+
+        // Skip network if cache is valid (within user-configured maxAge) and complete
+        if let age = cache.age(forKey: "artist_\(artist.id)"),
+           age < cache.maxAge,
+           let detail = artistDetail,
+           !detail.topTracks.isEmpty {
+            return
+        }
+
+        // Cache miss or stale — refresh from network
+        isRefreshing = true
+        async let artistTask: () = refreshArtistDetail()
+        async let bioTask: () = refreshBio()
+        async let similarTask: () = refreshSimilar()
         _ = await (artistTask, bioTask, similarTask)
+        await MainActor.run { isRefreshing = false }
     }
 
-    private func loadArtistDetail() async {
+    private func loadFromCache() {
+        let cache = CacheService.shared
+        if let cached: ArtistDetail = cache.get(forKey: "artist_\(artist.id)") {
+            artistDetail = cached
+        }
+        if let cached: String = cache.get(forKey: "bio_\(artist.id)") {
+            bio = cached
+        }
+        if let cached: [Artist] = cache.get(forKey: "similar_\(artist.id)") {
+            similarArtists = cached
+        }
+    }
+
+    private func refreshArtistDetail() async {
         do {
             let detail = try await MonochromeAPI().fetchArtist(id: artist.id)
             await MainActor.run {
                 withAnimation(.easeOut(duration: 0.3)) { artistDetail = detail }
             }
-        } catch { print("Error loading artist: \(error)") }
-    }
-
-    private func loadBio() async {
-        let result = await MonochromeAPI().fetchArtistBio(id: artist.id)
-        await MainActor.run {
-            withAnimation(.easeOut(duration: 0.3)) { bio = result }
+        } catch {
+            if artistDetail == nil { print("Error loading artist: \(error)") }
         }
     }
 
-    private func loadSimilar() async {
+    private func refreshBio() async {
+        let result = await MonochromeAPI().fetchArtistBio(id: artist.id)
+        await MainActor.run {
+            if let result {
+                withAnimation(.easeOut(duration: 0.3)) { bio = result }
+            }
+        }
+    }
+
+    private func refreshSimilar() async {
         let result = await MonochromeAPI().fetchSimilarArtists(id: artist.id)
         await MainActor.run {
-            withAnimation(.easeOut(duration: 0.3)) { similarArtists = result }
+            guard !result.isEmpty else { return }
+            // Only replace if the list actually changed — avoids resetting AsyncImage states
+            let cachedIds = similarArtists.map(\.id)
+            let freshIds = result.map(\.id)
+            if cachedIds != freshIds {
+                if similarArtists.isEmpty {
+                    withAnimation(.easeOut(duration: 0.3)) { similarArtists = result }
+                } else {
+                    similarArtists = result
+                }
+            }
         }
     }
 
@@ -651,6 +690,59 @@ private struct BioTextView: View {
         }
 
         return segments.isEmpty ? [.text(text)] : segments
+    }
+}
+
+// MARK: - Cached Async Image (persistent NSCache, survives view recycling)
+
+private class ImageCache {
+    static let shared = ImageCache()
+    private let cache = NSCache<NSURL, UIImage>()
+
+    init() {
+        cache.countLimit = 300
+        cache.totalCostLimit = 50 * 1024 * 1024
+    }
+
+    func get(_ url: URL) -> UIImage? { cache.object(forKey: url as NSURL) }
+    func set(_ url: URL, image: UIImage) { cache.setObject(image, forKey: url as NSURL) }
+}
+
+private struct CachedAsyncImage<I: View, P: View>: View {
+    let url: URL?
+    let content: (Image) -> I
+    let placeholder: () -> P
+
+    @State private var uiImage: UIImage?
+
+    init(url: URL?, @ViewBuilder content: @escaping (Image) -> I, @ViewBuilder placeholder: @escaping () -> P) {
+        self.url = url
+        self.content = content
+        self.placeholder = placeholder
+        // Synchronous cache check — cached images appear instantly, no placeholder flash
+        if let url, let cached = ImageCache.shared.get(url) {
+            _uiImage = State(initialValue: cached)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let uiImage {
+                content(Image(uiImage: uiImage))
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: url) {
+            guard uiImage == nil, let url else { return }
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let img = UIImage(data: data) {
+                    ImageCache.shared.set(url, image: img)
+                    uiImage = img
+                }
+            } catch {}
+        }
     }
 }
 

@@ -83,6 +83,8 @@ class MonochromeAPI {
     // Call 2: /artist/?f={id}   -> { albums: { items: [...] }, tracks: [...] }
 
     func fetchArtist(id: Int) async throws -> ArtistDetail {
+        let cacheKey = "artist_\(id)"
+
         guard let metaUrl = URL(string: "\(baseURL)/artist/?id=\(id)"),
               let contentUrl = URL(string: "\(baseURL)/artist/?f=\(id)") else {
             throw URLError(.badURL)
@@ -232,15 +234,19 @@ class MonochromeAPI {
             }
         }
 
-        return ArtistDetail(
+        let result = ArtistDetail(
             id: id, name: name, picture: picture, popularity: popularity,
             topTracks: topTracks, albums: albums, eps: eps
         )
+        CacheService.shared.set(forKey: cacheKey, value: result)
+        return result
     }
 
     // MARK: - Artist Biography (Tidal API with X-Tidal-Token)
 
     func fetchArtistBio(id: Int) async -> String? {
+        let cacheKey = "bio_\(id)"
+
         guard let url = URL(string: "https://api.tidal.com/v1/artists/\(id)/bio?locale=en_US&countryCode=GB") else { return nil }
 
         var req = URLRequest(url: url)
@@ -251,12 +257,16 @@ class MonochromeAPI {
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
 
         let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return json?["text"] as? String
+        let bio = json?["text"] as? String
+        if let bio { CacheService.shared.set(forKey: cacheKey, value: bio) }
+        return bio
     }
 
     // MARK: - Similar Artists (response: { artists: [...] })
 
     func fetchSimilarArtists(id: Int) async -> [Artist] {
+        let cacheKey = "similar_\(id)"
+
         guard let url = URL(string: "\(baseURL)/artist/similar/?id=\(id)") else { return [] }
 
         guard let (data, response) = try? await urlSession.data(for: request(for: url)),
@@ -272,12 +282,15 @@ class MonochromeAPI {
               let arrData = try? JSONSerialization.data(withJSONObject: artistsRaw),
               let decoded = try? JSONDecoder().decode([Artist].self, from: arrData) else { return [] }
 
+        CacheService.shared.set(forKey: cacheKey, value: decoded)
         return decoded
     }
 
     // MARK: - Album Detail
 
     func fetchAlbum(id: Int) async throws -> AlbumDetail {
+        let cacheKey = "album_\(id)"
+
         guard let url = URL(string: "\(baseURL)/album/?id=\(id)") else { throw URLError(.badURL) }
 
         let (data, response) = try await urlSession.data(for: request(for: url))
@@ -312,7 +325,9 @@ class MonochromeAPI {
         }
 
         guard let finalAlbum = album else { throw URLError(.cannotParseResponse) }
-        return AlbumDetail(album: finalAlbum, tracks: tracks)
+        let result = AlbumDetail(album: finalAlbum, tracks: tracks)
+        CacheService.shared.set(forKey: cacheKey, value: result)
+        return result
     }
 
     // MARK: - Stream URL
@@ -370,12 +385,12 @@ class MonochromeAPI {
 
 // MARK: - Artist Detail Model
 
-struct AlbumDetail {
+struct AlbumDetail: Codable {
     let album: Album
     let tracks: [Track]
 }
 
-struct ArtistDetail {
+struct ArtistDetail: Codable {
     let id: Int
     let name: String
     let picture: String?

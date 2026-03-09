@@ -139,15 +139,31 @@ struct AlbumDetailView: View {
         }
     }
 
-    // MARK: - Data
+    // MARK: - Data (cache-then-network)
 
     private func loadAlbum() async {
+        // Phase 1: instant from cache
+        let cacheKey = "album_\(album.id)"
+        if let cached: AlbumDetail = CacheService.shared.get(forKey: cacheKey) {
+            loadedAlbum = cached.album
+            tracks = cached.tracks
+            isLoading = false
+        }
+
+        // Phase 2: skip network if cache is valid (within user-configured maxAge) and complete
+        if let age = CacheService.shared.age(forKey: cacheKey),
+           age < CacheService.shared.maxAge,
+           !tracks.isEmpty {
+            return
+        }
+
+        // Phase 3: refresh from network
         do {
             let detail = try await MonochromeAPI().fetchAlbum(id: album.id)
             loadedAlbum = detail.album
             tracks = detail.tracks
         } catch {
-            print("Error loading album: \(error)")
+            if loadedAlbum == nil { print("Error loading album: \(error)") }
         }
         isLoading = false
     }

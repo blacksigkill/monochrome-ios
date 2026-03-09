@@ -2,6 +2,13 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    private var cache = CacheService.shared
+
+    @State private var cacheSize: String = ""
+    @State private var cacheEntries: Int = 0
+    @State private var showTTLPicker = false
+    @State private var showSizePicker = false
+    @State private var showClearConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -14,10 +21,32 @@ struct SettingsView: View {
                         SettingsRow(icon: "speaker.wave.2.fill", title: "Normalisation", value: "On")
                     }
 
-                    // MARK: - Storage
-                    SettingsSection(title: "Storage") {
-                        SettingsRow(icon: "internaldrive.fill", title: "Cache Size", value: "0 MB")
-                        SettingsRow(icon: "trash.fill", title: "Clear Cache", isAction: true)
+                    // MARK: - Cache
+                    SettingsSection(title: "Cache") {
+                        SettingsRow(
+                            icon: "internaldrive.fill",
+                            title: "Used",
+                            value: "\(cacheSize) · \(cacheEntries) item\(cacheEntries != 1 ? "s" : "")",
+                            showChevron: false
+                        )
+
+                        Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
+
+                        SettingsRow(icon: "clock.fill", title: "Duration", value: cache.ttlLabel) {
+                            showTTLPicker = true
+                        }
+
+                        Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
+
+                        SettingsRow(icon: "chart.bar.fill", title: "Max Size", value: cache.sizeLimitLabel) {
+                            showSizePicker = true
+                        }
+
+                        Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
+
+                        SettingsRow(icon: "trash.fill", title: "Clear Cache", isAction: true) {
+                            showClearConfirm = true
+                        }
                     }
 
                     // MARK: - Appearance
@@ -28,7 +57,7 @@ struct SettingsView: View {
 
                     // MARK: - About
                     SettingsSection(title: "About") {
-                        SettingsRow(icon: "info.circle.fill", title: "Version", value: appVersion)
+                        SettingsRow(icon: "info.circle.fill", title: "Version", value: appVersion, showChevron: false)
                         SettingsRow(icon: "doc.text.fill", title: "Terms of Service")
                         SettingsRow(icon: "hand.raised.fill", title: "Privacy Policy")
                         SettingsRow(icon: "envelope.fill", title: "Contact Us")
@@ -58,7 +87,36 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .onAppear { refreshCacheStats() }
+            .confirmationDialog("Cache Duration", isPresented: $showTTLPicker, titleVisibility: .visible) {
+                ForEach(CacheService.ttlOptions, id: \.value) { option in
+                    Button(option.label + (option.value == cache.maxAge ? " ✓" : "")) {
+                        cache.maxAge = option.value
+                    }
+                }
+            }
+            .confirmationDialog("Max Cache Size", isPresented: $showSizePicker, titleVisibility: .visible) {
+                ForEach(CacheService.sizeOptions, id: \.value) { option in
+                    Button(option.label + (option.value == cache.maxSizeMB ? " ✓" : "")) {
+                        cache.maxSizeMB = option.value
+                    }
+                }
+            }
+            .alert("Clear Cache", isPresented: $showClearConfirm) {
+                Button("Clear", role: .destructive) {
+                    cache.clearAll()
+                    refreshCacheStats()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will remove all cached data (\(cacheSize)). Pages will need to reload from the network.")
+            }
         }
+    }
+
+    private func refreshCacheStats() {
+        cacheSize = cache.formattedSize
+        cacheEntries = cache.entryCount
     }
 
     private var appVersion: String {
@@ -100,10 +158,12 @@ private struct SettingsRow: View {
     let title: String
     var value: String? = nil
     var isAction: Bool = false
+    var showChevron: Bool = true
+    var action: (() -> Void)? = nil
 
     var body: some View {
         Button {
-            // Not implemented yet
+            action?()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: icon)
@@ -123,7 +183,7 @@ private struct SettingsRow: View {
                         .foregroundColor(Theme.mutedForeground)
                 }
 
-                if !isAction {
+                if showChevron && !isAction {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Theme.mutedForeground.opacity(0.5))
