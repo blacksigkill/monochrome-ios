@@ -2,12 +2,25 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selectedTab = 0
-    @State private var navigationPath = NavigationPath()
+    @State private var homePath = NavigationPath()
+    @State private var searchPath = NavigationPath()
+    @State private var libraryPath = NavigationPath()
+    @State private var profilePath = NavigationPath()
     @State private var playerExpansion: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
     @Environment(AudioPlayerService.self) private var audioPlayer
 
     private let fullScreenH = UIScreen.main.bounds.height
+
+    private var activeNavigationPath: Binding<NavigationPath> {
+        switch selectedTab {
+        case 0: return $homePath
+        case 1: return $searchPath
+        case 2: return $libraryPath
+        case 3: return $profilePath
+        default: return $homePath
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -24,7 +37,7 @@ struct MainTabView: View {
                 ))
                 let yOffset = (1 - effectiveExp) * fullScreenH
 
-                NowPlayingView(expansion: $playerExpansion, navigationPath: $navigationPath)
+                NowPlayingView(expansion: $playerExpansion, navigationPath: activeNavigationPath)
                     .offset(y: yOffset)
                     .allowsHitTesting(effectiveExp > 0.3)
                     .gesture(closeDragGesture)
@@ -47,54 +60,54 @@ struct MainTabView: View {
     private var nativeTabView: some View {
         TabView(selection: $selectedTab) {
             Tab("Home", systemImage: "house.fill", value: 0) {
-                NavigationStack(path: $navigationPath) {
-                    HomeView(navigationPath: $navigationPath)
+                NavigationStack(path: $homePath) {
+                    HomeView(navigationPath: $homePath)
                         .navigationBarHidden(true)
                         .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $navigationPath)
+                            ArtistDetailView(artist: artist, navigationPath: $homePath)
                         }
                         .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $navigationPath)
+                            AlbumDetailView(album: album, navigationPath: $homePath)
                         }
                 }
             }
 
             Tab("Search", systemImage: "magnifyingglass", value: 1) {
-                NavigationStack(path: $navigationPath) {
-                    SearchView(navigationPath: $navigationPath)
+                NavigationStack(path: $searchPath) {
+                    SearchView(navigationPath: $searchPath)
                         .navigationBarHidden(true)
                         .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $navigationPath)
+                            ArtistDetailView(artist: artist, navigationPath: $searchPath)
                         }
                         .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $navigationPath)
+                            AlbumDetailView(album: album, navigationPath: $searchPath)
                         }
                 }
                 .ignoresSafeArea(.keyboard)
             }
 
             Tab("Library", systemImage: "books.vertical.fill", value: 2) {
-                NavigationStack(path: $navigationPath) {
-                    LibraryView(navigationPath: $navigationPath)
+                NavigationStack(path: $libraryPath) {
+                    LibraryView(navigationPath: $libraryPath)
                         .navigationBarHidden(true)
                         .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $navigationPath)
+                            ArtistDetailView(artist: artist, navigationPath: $libraryPath)
                         }
                         .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $navigationPath)
+                            AlbumDetailView(album: album, navigationPath: $libraryPath)
                         }
                 }
             }
 
             Tab("Profile", systemImage: "person.fill", value: 3) {
-                NavigationStack(path: $navigationPath) {
-                    ProfileView(navigationPath: $navigationPath)
+                NavigationStack(path: $profilePath) {
+                    ProfileView(navigationPath: $profilePath)
                         .navigationBarHidden(true)
                         .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $navigationPath)
+                            ArtistDetailView(artist: artist, navigationPath: $profilePath)
                         }
                         .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $navigationPath)
+                            AlbumDetailView(album: album, navigationPath: $profilePath)
                         }
                 }
             }
@@ -113,25 +126,22 @@ struct MainTabView: View {
 
     private var legacyTabView: some View {
         ZStack(alignment: .bottom) {
-            NavigationStack(path: $navigationPath) {
-                Group {
-                    switch selectedTab {
-                    case 0: HomeView(navigationPath: $navigationPath)
-                    case 1: SearchView(navigationPath: $navigationPath)
-                    case 2: LibraryView(navigationPath: $navigationPath)
-                    case 3: ProfileView(navigationPath: $navigationPath)
-                    default: HomeView(navigationPath: $navigationPath)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.background)
-                .navigationBarHidden(true)
-                .navigationDestination(for: Artist.self) { artist in
-                    ArtistDetailView(artist: artist, navigationPath: $navigationPath)
-                }
-                .navigationDestination(for: Album.self) { album in
-                    AlbumDetailView(album: album, navigationPath: $navigationPath)
-                }
+            ZStack {
+                legacyNavStack(path: $homePath) { HomeView(navigationPath: $homePath) }
+                    .opacity(selectedTab == 0 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 0)
+
+                legacyNavStack(path: $searchPath) { SearchView(navigationPath: $searchPath) }
+                    .opacity(selectedTab == 1 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 1)
+
+                legacyNavStack(path: $libraryPath) { LibraryView(navigationPath: $libraryPath) }
+                    .opacity(selectedTab == 2 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 2)
+
+                legacyNavStack(path: $profilePath) { ProfileView(navigationPath: $profilePath) }
+                    .opacity(selectedTab == 3 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 3)
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
 
@@ -159,6 +169,21 @@ struct MainTabView: View {
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .ignoresSafeArea()
+    }
+
+    private func legacyNavStack<Content: View>(path: Binding<NavigationPath>, @ViewBuilder content: () -> Content) -> some View {
+        NavigationStack(path: path) {
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.background)
+                .navigationBarHidden(true)
+                .navigationDestination(for: Artist.self) { artist in
+                    ArtistDetailView(artist: artist, navigationPath: path)
+                }
+                .navigationDestination(for: Album.self) { album in
+                    AlbumDetailView(album: album, navigationPath: path)
+                }
+        }
     }
 
     // MARK: - Close drag (drag down from full player)
