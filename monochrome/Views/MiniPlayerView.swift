@@ -140,35 +140,25 @@ struct MiniPlayerView: View {
 
     private var currentTrackRow: some View {
         HStack(spacing: 10) {
-            // Cover art + track info: tapping opens full player (only if not dragging)
-            HStack(spacing: 10) {
-                AsyncImage(url: audioPlayer.currentCoverUrl) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        RoundedRectangle(cornerRadius: 4).fill(Theme.card)
-                    }
-                }
-                .frame(width: 40, height: 40)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(audioPlayer.currentTrackTitle)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Theme.foreground)
-                        .lineLimit(1)
-                    Text(audioPlayer.currentArtistName)
-                        .font(.system(size: 12))
-                        .foregroundColor(Theme.mutedForeground)
-                        .lineLimit(1)
+            AsyncImage(url: audioPlayer.currentCoverUrl) { phase in
+                if let image = phase.image {
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    RoundedRectangle(cornerRadius: 4).fill(Theme.card)
                 }
             }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                guard !isDragging else { return }
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                    expansion = 1
-                }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(audioPlayer.currentTrackTitle)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.foreground)
+                    .lineLimit(1)
+                Text(audioPlayer.currentArtistName)
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.mutedForeground)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -178,6 +168,7 @@ struct MiniPlayerView: View {
                     Image(systemName: libraryManager.isFavorite(trackId: track.id) ? "heart.fill" : "heart")
                         .font(.system(size: 18))
                         .foregroundColor(libraryManager.isFavorite(trackId: track.id) ? Theme.foreground : Theme.mutedForeground)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
             }
@@ -186,11 +177,19 @@ struct MiniPlayerView: View {
                 Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 20))
                     .foregroundColor(Theme.foreground)
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !isDragging else { return }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                expansion = 1
+            }
+        }
     }
 
     // MARK: - Preview row for next/previous track
