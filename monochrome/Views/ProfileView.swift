@@ -4,7 +4,10 @@ struct ProfileView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(AuthService.self) private var authService
     @State private var showSettings = false
+    @State private var showLogin = false
+    @State private var isSyncing = false
 
     var body: some View {
         ScrollView {
@@ -31,44 +34,106 @@ struct ProfileView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 32)
 
-                // MARK: - Avatar & Guest Info
+                // MARK: - Avatar & User Info
                 VStack(spacing: 16) {
                     ZStack {
                         Circle()
                             .fill(Theme.secondary)
                             .frame(width: 100, height: 100)
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 40))
-                            .foregroundColor(Theme.mutedForeground)
+                        if authService.isAuthenticated {
+                            Text(avatarInitial)
+                                .font(.system(size: 36, weight: .bold))
+                                .foregroundColor(Theme.foreground)
+                        } else {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(Theme.mutedForeground)
+                        }
                     }
 
                     VStack(spacing: 4) {
-                        Text("Guest")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(Theme.foreground)
-                        Text("Sign in to sync your library")
-                            .font(.system(size: 14))
-                            .foregroundColor(Theme.mutedForeground)
+                        if let user = authService.currentUser {
+                            Text(user.name ?? user.email)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(Theme.foreground)
+                            if user.name != nil {
+                                Text(user.email)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Theme.mutedForeground)
+                            }
+                        } else {
+                            Text("Guest")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(Theme.foreground)
+                            Text("Sign in to sync your library")
+                                .font(.system(size: 14))
+                                .foregroundColor(Theme.mutedForeground)
+                        }
                     }
                 }
                 .padding(.bottom, 32)
 
-                // MARK: - Sign In Buttons
-                VStack(spacing: 12) {
-                    SignInButton(
-                        icon: "apple.logo",
-                        label: "Continue with Apple",
-                        style: .primary
-                    )
+                // MARK: - Sign In / Sign Out Buttons
+                if authService.isAuthenticated {
+                    VStack(spacing: 12) {
+                        // Sync button
+                        Button {
+                            Task { await syncLibrary() }
+                        } label: {
+                            HStack(spacing: 12) {
+                                if isSyncing {
+                                    ProgressView()
+                                        .tint(Theme.foreground)
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 18))
+                                }
+                                Text(isSyncing ? "Syncing..." : "Sync Library")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .foregroundColor(Theme.foreground)
+                            .background(Theme.secondary)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusLg))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSyncing)
 
-                    SignInButton(
-                        icon: "envelope.fill",
-                        label: "Continue with Email",
-                        style: .secondary
-                    )
+                        // Sign out button
+                        Button {
+                            Task { await authService.signOut() }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .font(.system(size: 18))
+                                Text("Sign Out")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .foregroundColor(.red)
+                            .background(Theme.secondary)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusLg))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 40)
+                } else {
+                    VStack(spacing: 12) {
+                        SignInButton(
+                            icon: "envelope.fill",
+                            label: "Sign In / Create Account",
+                            style: .primary
+                        ) {
+                            showLogin = true
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 40)
 
                 // MARK: - Stats
                 VStack(spacing: 0) {
@@ -120,12 +185,61 @@ struct ProfileView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Theme.background)
         }
+        .sheet(isPresented: $showLogin) {
+            LoginView()
+                .environment(authService)
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Theme.background)
+        }
     }
 
     private var listeningTime: String {
         let totalSeconds = audioPlayer.playHistory.reduce(0) { $0 + $1.duration }
         let minutes = totalSeconds / 60
         return "\(minutes)"
+    }
+
+    private var avatarInitial: String {
+        let name = authService.currentUser?.name ?? authService.currentUser?.email ?? ""
+        return String(name.prefix(1)).uppercased()
+    }
+
+    private func syncLibrary() async {
+        guard let uid = authService.currentUser?.uid else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+
+        do {
+            // Upload local favorites to cloud
+            try await PocketBaseService.shared.syncLibrary(
+                uid: uid,
+                tracks: libraryManager.favoriteTracks,
+                albums: libraryManager.favoriteAlbums
+            )
+
+            // Download cloud data and merge
+            let cloud = try await PocketBaseService.shared.fetchLibrary(uid: uid)
+            let cloudTracks = cloud.decodeTracks()
+            let cloudAlbums = cloud.decodeAlbums()
+
+            // Merge cloud tracks into local
+            for track in cloudTracks {
+                if !libraryManager.isFavorite(trackId: track.id) {
+                    libraryManager.favoriteTracks.append(track)
+                }
+            }
+            libraryManager.saveTracks()
+
+            // Merge cloud albums into local
+            for album in cloudAlbums {
+                if !libraryManager.isFavorite(albumId: album.id) {
+                    libraryManager.favoriteAlbums.append(album)
+                }
+            }
+            libraryManager.saveAlbums()
+        } catch {
+            print("[Sync] Error: \(error.localizedDescription)")
+        }
     }
 }
 
@@ -139,11 +253,10 @@ private struct SignInButton: View {
     let icon: String
     let label: String
     let style: SignInButtonStyle
+    var action: () -> Void
 
     var body: some View {
-        Button {
-            // Not implemented yet
-        } label: {
+        Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 18))
@@ -234,4 +347,5 @@ private struct ProfileLink: View {
     ProfileView(navigationPath: .constant(NavigationPath()))
         .environment(AudioPlayerService())
         .environment(LibraryManager.shared)
+        .environment(AuthService.shared)
 }

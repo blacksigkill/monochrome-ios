@@ -5,12 +5,14 @@ import AVFoundation
 struct MonochromeIOSApp: App {
     @State private var audioPlayerService = AudioPlayerService()
     @State private var libraryManager = LibraryManager.shared
+    @State private var authService = AuthService.shared
 
     var body: some Scene {
         WindowGroup {
             MainTabView()
                 .environment(audioPlayerService)
                 .environment(libraryManager)
+                .environment(authService)
                 .onAppear {
                     setupAudioSession()
                 }
