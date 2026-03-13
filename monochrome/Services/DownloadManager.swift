@@ -1,0 +1,202 @@
+import Foundation
+import Observation
+
+@Observable
+class DownloadManager {
+    static let shared = DownloadManager()
+
+    // trackId -> download state
+    var activeDownloads: [Int: DownloadState] = [:]
+
+    private let manifestKey = "monochrome_downloads_manifest"
+    private var manifest: [Int: DownloadedTrack] = [:]
+    private let downloadsDir: URL
+
+    struct DownloadedTrack: Codable {
+        let trackId: Int
+        let title: String
+        let artist: String
+        let album: String
+        let fileName: String
+        let downloadedAt: Double
+    }
+
+    enum DownloadState {
+        case downloading(progress: Double)
+        case completed
+        case failed
+    }
+
+    init() {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        downloadsDir = docs.appendingPathComponent("MonochromeDownloads", isDirectory: true)
+        try? FileManager.default.createDirectory(at: downloadsDir, withIntermediateDirectories: true)
+        loadManifest()
+    }
+
+    // MARK: - Status
+
+    func isDownloaded(_ trackId: Int) -> Bool {
+        guard let entry = manifest[trackId] else { return false }
+        let path = downloadsDir.appendingPathComponent(entry.fileName)
+        if FileManager.default.fileExists(atPath: path.path) {
+            return true
+        }
+        // File was removed outside app
+        manifest.removeValue(forKey: trackId)
+        saveManifest()
+        return false
+    }
+
+    func isDownloading(_ trackId: Int) -> Bool {
+        if case .downloading = activeDownloads[trackId] { return true }
+        return false
+    }
+
+    func progress(for trackId: Int) -> Double {
+        if case .downloading(let p) = activeDownloads[trackId] { return p }
+        return 0
+    }
+
+    func localURL(for trackId: Int) -> URL? {
+        guard let entry = manifest[trackId] else { return nil }
+        let path = downloadsDir.appendingPathComponent(entry.fileName)
+        guard FileManager.default.fileExists(atPath: path.path) else { return nil }
+        return path
+    }
+
+    // MARK: - Download
+
+    func downloadTrack(_ track: Track) {
+        let trackId = track.id
+        guard !isDownloaded(trackId), !isDownloading(trackId) else { return }
+
+        activeDownloads[trackId] = .downloading(progress: 0)
+
+        Task {
+            do {
+                guard let streamUrlStr = try await MonochromeAPI().fetchStreamUrl(trackId: trackId),
+                      let streamUrl = URL(string: streamUrlStr) else {
+                    await MainActor.run { activeDownloads[trackId] = .failed }
+                    return
+                }
+
+                let ext = streamUrl.pathExtension.isEmpty ? "flac" : streamUrl.pathExtension
+                let fileName = "\(trackId).\(ext)"
+                let destURL = downloadsDir.appendingPathComponent(fileName)
+
+                let (tempURL, response) = try await URLSession.shared.download(from: streamUrl, delegate: ProgressDelegate { progress in
+                    Task { @MainActor in
+                        self.activeDownloads[trackId] = .downloading(progress: progress)
+                    }
+                })
+
+                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                    await MainActor.run { activeDownloads[trackId] = .failed }
+                    return
+                }
+
+                // Move to permanent location
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    try FileManager.default.removeItem(at: destURL)
+                }
+                try FileManager.default.moveItem(at: tempURL, to: destURL)
+
+                let entry = DownloadedTrack(
+                    trackId: trackId,
+                    title: track.title,
+                    artist: track.artist?.name ?? "",
+                    album: track.album?.title ?? "",
+                    fileName: fileName,
+                    downloadedAt: Date().timeIntervalSince1970
+                )
+
+                await MainActor.run {
+                    manifest[trackId] = entry
+                    saveManifest()
+                    activeDownloads[trackId] = .completed
+                    // Clear completed state after a moment
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        if case .completed = self.activeDownloads[trackId] {
+                            self.activeDownloads.removeValue(forKey: trackId)
+                        }
+                    }
+                }
+
+                print("[Download] Saved: \(track.title) → \(fileName)")
+            } catch {
+                print("[Download] Error for \(trackId): \(error.localizedDescription)")
+                await MainActor.run { activeDownloads[trackId] = .failed }
+            }
+        }
+    }
+
+    func downloadTracks(_ tracks: [Track]) {
+        for track in tracks where !isDownloaded(track.id) && !isDownloading(track.id) {
+            downloadTrack(track)
+        }
+    }
+
+    func removeDownload(_ trackId: Int) {
+        if let entry = manifest[trackId] {
+            let path = downloadsDir.appendingPathComponent(entry.fileName)
+            try? FileManager.default.removeItem(at: path)
+        }
+        manifest.removeValue(forKey: trackId)
+        activeDownloads.removeValue(forKey: trackId)
+        saveManifest()
+    }
+
+    func removeAllDownloads() {
+        for (_, entry) in manifest {
+            let path = downloadsDir.appendingPathComponent(entry.fileName)
+            try? FileManager.default.removeItem(at: path)
+        }
+        manifest.removeAll()
+        activeDownloads.removeAll()
+        saveManifest()
+    }
+
+    var downloadedCount: Int {
+        manifest.values.filter { entry in
+            FileManager.default.fileExists(atPath: downloadsDir.appendingPathComponent(entry.fileName).path)
+        }.count
+    }
+
+    // MARK: - Persistence
+
+    private func loadManifest() {
+        guard let data = UserDefaults.standard.data(forKey: manifestKey),
+              let saved = try? JSONDecoder().decode([Int: DownloadedTrack].self, from: data) else { return }
+        manifest = saved
+    }
+
+    private func saveManifest() {
+        if let data = try? JSONEncoder().encode(manifest) {
+            UserDefaults.standard.set(data, forKey: manifestKey)
+        }
+    }
+}
+
+// MARK: - Download Progress Delegate
+
+private final class ProgressDelegate: NSObject, URLSessionTaskDelegate {
+    let onProgress: (Double) -> Void
+
+    init(onProgress: @escaping (Double) -> Void) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        // observe progress via KVO
+        task.addObserver(self, forKeyPath: "countOfBytesReceived", options: .new, context: nil)
+    }
+
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+        if let task = object as? URLSessionTask, task.countOfBytesExpectedToReceive > 0 {
+            let progress = Double(task.countOfBytesReceived) / Double(task.countOfBytesExpectedToReceive)
+            onProgress(min(1, progress))
+        }
+    }
+}

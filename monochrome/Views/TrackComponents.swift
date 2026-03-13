@@ -9,6 +9,7 @@ struct TrackRow: View {
     @Binding var navigationPath: NavigationPath
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(DownloadManager.self) private var downloadManager
     @State private var showOptions = false
     @State private var confirmationMessage: String? = nil
     
@@ -58,6 +59,17 @@ struct TrackRow: View {
             }
 
             Spacer()
+
+            // Download indicator
+            if downloadManager.isDownloaded(track.id) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(Theme.highlight)
+            } else if downloadManager.isDownloading(track.id) {
+                ProgressView(value: downloadManager.progress(for: track.id))
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.8)
+            }
 
             // Feedback or Context menu button
             if let message = confirmationMessage {
@@ -155,8 +167,36 @@ struct TrackOptionsSheet: View {
     @Binding var isPresented: Bool
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
-    @Environment(PlaylistManager.self) private var playlistManager
+    @Environment(DownloadManager.self) private var downloadManager
     @State private var showAddToPlaylist = false
+
+    @ViewBuilder
+    private var downloadOptionRow: some View {
+        let isDownloaded = downloadManager.isDownloaded(track.id)
+        let isDownloading = downloadManager.isDownloading(track.id)
+
+        if isDownloading {
+            let progress = downloadManager.progress(for: track.id)
+            OptionRow(
+                icon: "arrow.down.circle",
+                label: "Downloading \(Int(progress * 100))%",
+                iconColor: Theme.mutedForeground
+            ) {}
+        } else if isDownloaded {
+            OptionRow(
+                icon: "checkmark.circle.fill",
+                label: "Downloaded",
+                iconColor: Theme.highlight
+            ) {
+                downloadManager.removeDownload(track.id)
+                isPresented = false
+            }
+        } else {
+            OptionRow(icon: "arrow.down.circle", label: "Download") {
+                downloadManager.downloadTrack(track)
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -239,6 +279,9 @@ struct TrackOptionsSheet: View {
                             }
                         }
                     }
+
+                    // Download
+                    downloadOptionRow
 
                     // Share
                     OptionRow(icon: "square.and.arrow.up", label: "Share") {

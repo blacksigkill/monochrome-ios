@@ -8,6 +8,7 @@ struct MonochromeIOSApp: App {
     @State private var authService = AuthService.shared
     @State private var playlistManager = PlaylistManager.shared
     @State private var profileManager = ProfileManager.shared
+    @State private var downloadManager = DownloadManager.shared
     @State private var syncTimer: Timer?
 
     var body: some Scene {
@@ -18,6 +19,7 @@ struct MonochromeIOSApp: App {
                 .environment(authService)
                 .environment(playlistManager)
                 .environment(profileManager)
+                .environment(downloadManager)
                 .onAppear {
                     setupAudioSession()
                     triggerSyncIfNeeded()

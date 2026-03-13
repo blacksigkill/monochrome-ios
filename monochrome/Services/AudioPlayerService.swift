@@ -210,9 +210,15 @@ class AudioPlayerService {
         self.duration = 0
 
         Task {
-            if let streamUrlStr = try? await MonochromeAPI().fetchStreamUrl(trackId: track.id),
-               let url = URL(string: streamUrlStr) {
+            // Prefer local download, fall back to streaming
+            var resolvedUrl: URL? = DownloadManager.shared.localURL(for: track.id)
+            if resolvedUrl == nil {
+                if let streamUrlStr = try? await MonochromeAPI().fetchStreamUrl(trackId: track.id) {
+                    resolvedUrl = URL(string: streamUrlStr)
+                }
+            }
 
+            if let url = resolvedUrl {
                 let asset = AVURLAsset(url: url)
                 let playerItem = AVPlayerItem(asset: asset)
 

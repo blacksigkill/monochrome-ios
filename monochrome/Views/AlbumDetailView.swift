@@ -5,12 +5,39 @@ struct AlbumDetailView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(DownloadManager.self) private var downloadManager
 
     @State private var loadedAlbum: Album?
     @State private var tracks: [Track] = []
     @State private var isLoading = true
 
     private var displayAlbum: Album { loadedAlbum ?? album }
+
+    private var albumDownloadButton: some View {
+        let allDownloaded = !tracks.isEmpty && tracks.allSatisfy { downloadManager.isDownloaded($0.id) }
+        let someDownloading = tracks.contains { downloadManager.isDownloading($0.id) }
+
+        return Button(action: {
+            if !allDownloaded {
+                downloadManager.downloadTracks(tracks)
+            }
+        }) {
+            if allDownloaded {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundColor(Theme.highlight)
+            } else if someDownloading {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.8)
+            } else {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 22))
+                    .foregroundColor(Theme.mutedForeground)
+            }
+        }
+        .buttonStyle(.borderless)
+    }
 
     var body: some View {
         ZStack {
@@ -97,6 +124,8 @@ struct AlbumDetailView: View {
                         .foregroundColor(libraryManager.isFavorite(albumId: displayAlbum.id) ? Theme.foreground : Theme.mutedForeground)
                 }
                 .buttonStyle(.borderless)
+
+                albumDownloadButton
 
                 Button(action: {
                     guard !tracks.isEmpty else { return }
