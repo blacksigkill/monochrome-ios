@@ -136,6 +136,7 @@ struct MainTabView: View {
                 }
             }
         }
+        .gesture(tabSwipeGesture)
         .tabViewBottomAccessory {
             if audioPlayer.currentTrack != nil {
                 MiniPlayerView(expansion: $playerExpansion)
@@ -168,6 +169,7 @@ struct MainTabView: View {
                     .allowsHitTesting(selectedTab == 3)
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
+            .gesture(tabSwipeGesture)
 
             VStack(spacing: 6) {
                 if audioPlayer.currentTrack != nil {
@@ -214,6 +216,25 @@ struct MainTabView: View {
                     UserPlaylistDetailView(playlistId: playlist.id, navigationPath: path)
                 }
         }
+    }
+
+    // MARK: - Tab swipe gesture
+
+    private var tabSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onEnded { value in
+                guard playerExpansion == 0 else { return }
+                let h = value.translation.width
+                let v = value.translation.height
+                guard abs(h) > abs(v) * 1.5, abs(h) > 50 else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    if h < 0 {
+                        selectedTab = min(3, selectedTab + 1)
+                    } else {
+                        selectedTab = max(0, selectedTab - 1)
+                    }
+                }
+            }
     }
 
     // MARK: - Close drag (drag down from full player)
