@@ -161,6 +161,38 @@ class PocketBaseService {
         try await updateField(recordId: recordId, uid: uid, field: field, value: value)
     }
 
+    func updateUserFields(recordId: String, uid: String, fields: [String: Any]) async throws {
+        guard let url = URL(string: "\(baseURL)/api/collections/\(collection)/records/\(recordId)?f_id=\(uid)") else {
+            throw PBError.badURL
+        }
+
+        var body: [String: Any] = [:]
+        for (field, value) in fields {
+            if let dict = value as? [String: Any] {
+                let data = try JSONSerialization.data(withJSONObject: dict)
+                body[field] = String(data: data, encoding: .utf8) ?? "{}"
+            } else if let array = value as? [Any] {
+                let data = try JSONSerialization.data(withJSONObject: array)
+                body[field] = String(data: data, encoding: .utf8) ?? "[]"
+            } else {
+                body[field] = "\(value)"
+            }
+        }
+
+        var req = request(for: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: req)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if statusCode != 200 {
+            let responseBody = String(data: data, encoding: .utf8) ?? "no body"
+            print("[Sync] PATCH fields failed with status \(statusCode): \(responseBody.prefix(500))")
+            throw PBError.serverError
+        }
+    }
+
     private func updateField(recordId: String, uid: String, field: String, value: Any) async throws {
         guard let url = URL(string: "\(baseURL)/api/collections/\(collection)/records/\(recordId)?f_id=\(uid)") else {
             throw PBError.badURL
@@ -387,6 +419,13 @@ struct PBUserRecord: Decodable {
     let username: String?
     let display_name: String?
     let avatar_url: String?
+    let banner: String?
+    let status: String?
+    let about: String?
+    let website: String?
+    let privacy: String?
+    let lastfm_username: String?
+    let favorite_albums: String?
 
     // PocketBase JSON fields can come as either strings or parsed JSON objects.
     // This custom decoder handles both cases by converting objects to strings.
@@ -397,11 +436,18 @@ struct PBUserRecord: Decodable {
         username = try container.decodeIfPresent(String.self, forKey: .username)
         display_name = try container.decodeIfPresent(String.self, forKey: .display_name)
         avatar_url = try container.decodeIfPresent(String.self, forKey: .avatar_url)
+        banner = try container.decodeIfPresent(String.self, forKey: .banner)
+        about = try container.decodeIfPresent(String.self, forKey: .about)
+        website = try container.decodeIfPresent(String.self, forKey: .website)
+        lastfm_username = try container.decodeIfPresent(String.self, forKey: .lastfm_username)
 
         library = Self.decodeJSONField(container: container, key: .library)
         history = Self.decodeJSONField(container: container, key: .history)
         user_playlists = Self.decodeJSONField(container: container, key: .user_playlists)
         user_folders = Self.decodeJSONField(container: container, key: .user_folders)
+        status = Self.decodeJSONField(container: container, key: .status)
+        privacy = Self.decodeJSONField(container: container, key: .privacy)
+        favorite_albums = Self.decodeJSONField(container: container, key: .favorite_albums)
     }
 
     private static func decodeJSONField(container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> String? {
@@ -420,7 +466,8 @@ struct PBUserRecord: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case id, firebase_id, library, history, user_playlists, user_folders
-        case username, display_name, avatar_url
+        case username, display_name, avatar_url, banner, status, about, website
+        case privacy, lastfm_username, favorite_albums
     }
 }
 

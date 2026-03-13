@@ -7,6 +7,7 @@ struct MonochromeIOSApp: App {
     @State private var libraryManager = LibraryManager.shared
     @State private var authService = AuthService.shared
     @State private var playlistManager = PlaylistManager.shared
+    @State private var profileManager = ProfileManager.shared
     @State private var syncTimer: Timer?
 
     var body: some Scene {
@@ -16,6 +17,7 @@ struct MonochromeIOSApp: App {
                 .environment(libraryManager)
                 .environment(authService)
                 .environment(playlistManager)
+                .environment(profileManager)
                 .onAppear {
                     setupAudioSession()
                     triggerSyncIfNeeded()
@@ -26,6 +28,7 @@ struct MonochromeIOSApp: App {
                         triggerSyncIfNeeded()
                     } else {
                         PocketBaseService.shared.clearCache()
+                        profileManager.clear()
                     }
                 }
         }
@@ -36,6 +39,7 @@ struct MonochromeIOSApp: App {
         Task {
             await libraryManager.syncFromCloud(uid: uid)
             await playlistManager.syncFromCloud(uid: uid)
+            await profileManager.syncFromCloud(uid: uid)
         }
     }
 

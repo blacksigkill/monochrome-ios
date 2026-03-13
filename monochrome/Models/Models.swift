@@ -126,6 +126,44 @@ struct UserFolder: Identifiable, Codable, Hashable {
     static func == (lhs: UserFolder, rhs: UserFolder) -> Bool { lhs.id == rhs.id }
 }
 
+// MARK: - User Profile
+
+struct UserProfile: Codable {
+    var username: String
+    var displayName: String
+    var avatarUrl: String
+    var banner: String
+    var status: String
+    var about: String
+    var website: String
+    var lastfmUsername: String
+    var privacy: ProfilePrivacy
+    var historyCount: Int
+
+    init(username: String = "", displayName: String = "", avatarUrl: String = "", banner: String = "", status: String = "", about: String = "", website: String = "", lastfmUsername: String = "", privacy: ProfilePrivacy = ProfilePrivacy(), historyCount: Int = 0) {
+        self.username = username
+        self.displayName = displayName
+        self.avatarUrl = avatarUrl
+        self.banner = banner
+        self.status = status
+        self.about = about
+        self.website = website
+        self.lastfmUsername = lastfmUsername
+        self.privacy = privacy
+        self.historyCount = historyCount
+    }
+}
+
+struct ProfilePrivacy: Codable {
+    var playlists: String
+    var lastfm: String
+
+    init(playlists: String = "public", lastfm: String = "public") {
+        self.playlists = playlists
+        self.lastfm = lastfm
+    }
+}
+
 // MARK: - API Responses
 
 struct SearchResponse: Codable {

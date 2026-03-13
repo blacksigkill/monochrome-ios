@@ -5,8 +5,11 @@ struct ProfileView: View {
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(AuthService.self) private var authService
+    @Environment(ProfileManager.self) private var profileManager
+    @Environment(PlaylistManager.self) private var playlistManager
     @State private var showSettings = false
     @State private var showLogin = false
+    @State private var showEditProfile = false
 
     var body: some View {
         ScrollView {
@@ -17,9 +20,18 @@ struct ProfileView: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(Theme.foreground)
                     Spacer()
-                    Button {
-                        showSettings = true
-                    } label: {
+                    if authService.isAuthenticated {
+                        Button { showEditProfile = true } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 18))
+                                .foregroundColor(Theme.foreground)
+                                .frame(width: 40, height: 40)
+                                .background(Theme.secondary)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button { showSettings = true } label: {
                         Image(systemName: "gearshape")
                             .font(.system(size: 20))
                             .foregroundColor(Theme.foreground)
@@ -31,34 +43,102 @@ struct ProfileView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
+
+                // MARK: - Banner
+                if authService.isAuthenticated && !profileManager.profile.banner.isEmpty {
+                    AsyncImage(url: URL(string: profileManager.profile.banner)) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        } else {
+                            Rectangle().fill(Theme.secondary)
+                        }
+                    }
+                    .frame(height: 120)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, -40)
+                }
 
                 // MARK: - Avatar & User Info
-                VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Theme.secondary)
-                            .frame(width: 100, height: 100)
-                        if authService.isAuthenticated {
-                            Text(avatarInitial)
-                                .font(.system(size: 36, weight: .bold))
-                                .foregroundColor(Theme.foreground)
-                        } else {
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(Theme.mutedForeground)
+                VStack(spacing: 12) {
+                    // Avatar
+                    if authService.isAuthenticated && !profileManager.profile.avatarUrl.isEmpty {
+                        AsyncImage(url: URL(string: profileManager.profile.avatarUrl)) { phase in
+                            if let image = phase.image {
+                                image.resizable().scaledToFill()
+                            } else {
+                                Circle().fill(Theme.secondary)
+                                    .overlay(Text(avatarInitial).font(.system(size: 36, weight: .bold)).foregroundColor(Theme.foreground))
+                            }
+                        }
+                        .frame(width: 100, height: 100)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Theme.background, lineWidth: 4))
+                    } else {
+                        ZStack {
+                            Circle().fill(Theme.secondary)
+                                .frame(width: 100, height: 100)
+                            if authService.isAuthenticated {
+                                Text(avatarInitial)
+                                    .font(.system(size: 36, weight: .bold))
+                                    .foregroundColor(Theme.foreground)
+                            } else {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(Theme.mutedForeground)
+                            }
                         }
                     }
 
                     VStack(spacing: 4) {
-                        if let user = authService.currentUser {
-                            Text(user.name ?? user.email)
+                        if authService.isAuthenticated {
+                            let displayName = profileManager.profile.displayName.isEmpty
+                                ? (authService.currentUser?.name ?? authService.currentUser?.email ?? "")
+                                : profileManager.profile.displayName
+                            Text(displayName)
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(Theme.foreground)
-                            if user.name != nil {
-                                Text(user.email)
+
+                            if !profileManager.profile.username.isEmpty {
+                                Text("@\(profileManager.profile.username)")
                                     .font(.system(size: 14))
                                     .foregroundColor(Theme.mutedForeground)
+                            }
+
+                            // Status
+                            if !profileManager.profile.status.isEmpty {
+                                Text(profileManager.profile.status)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(Theme.mutedForeground)
+                                    .italic()
+                                    .padding(.top, 2)
+                            }
+
+                            // About
+                            if !profileManager.profile.about.isEmpty {
+                                Text(profileManager.profile.about)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Theme.foreground.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 32)
+                                    .padding(.top, 4)
+                            }
+
+                            // Website
+                            if !profileManager.profile.website.isEmpty {
+                                Link(destination: URL(string: profileManager.profile.website) ?? URL(string: "https://example.com")!) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "link")
+                                            .font(.system(size: 12))
+                                        Text(profileManager.profile.website.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: ""))
+                                            .font(.system(size: 13))
+                                    }
+                                    .foregroundColor(.blue)
+                                }
+                                .padding(.top, 2)
                             }
                         } else {
                             Text("Guest")
@@ -70,43 +150,35 @@ struct ProfileView: View {
                         }
                     }
                 }
-                .padding(.bottom, 32)
+                .padding(.top, profileManager.profile.banner.isEmpty || !authService.isAuthenticated ? 16 : 0)
+                .padding(.bottom, 24)
 
-                // MARK: - Sign In / Sign Out Buttons
+                // MARK: - Sign In / Sign Out
                 if authService.isAuthenticated {
-                    VStack(spacing: 12) {
-                        // Sign out button
-                        Button {
-                            Task { await authService.signOut() }
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    .font(.system(size: 18))
-                                Text("Sign Out")
-                                    .font(.system(size: 16, weight: .semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .foregroundColor(.red)
-                            .background(Theme.secondary)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusLg))
+                    Button {
+                        Task { await authService.signOut() }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 18))
+                            Text("Sign Out")
+                                .font(.system(size: 16, weight: .semibold))
                         }
-                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .foregroundColor(.red)
+                        .background(Theme.secondary)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusLg))
                     }
+                    .buttonStyle(.plain)
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 32)
                 } else {
-                    VStack(spacing: 12) {
-                        SignInButton(
-                            icon: "envelope.fill",
-                            label: "Sign In / Create Account",
-                            style: .primary
-                        ) {
-                            showLogin = true
-                        }
+                    SignInButton(icon: "envelope.fill", label: "Sign In / Create Account", style: .primary) {
+                        showLogin = true
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 32)
                 }
 
                 // MARK: - Stats
@@ -121,31 +193,25 @@ struct ProfileView: View {
                     .padding(.bottom, 16)
 
                     HStack(spacing: 12) {
-                        StatCard(
-                            icon: "heart.fill",
-                            value: "\(libraryManager.favoriteTracks.count)",
-                            label: "Favorites"
-                        )
-                        StatCard(
-                            icon: "music.note.list",
-                            value: "\(audioPlayer.playHistory.count)",
-                            label: "Listened"
-                        )
-                        StatCard(
-                            icon: "clock.fill",
-                            value: listeningTime,
-                            label: "Minutes"
-                        )
+                        StatCard(icon: "heart.fill", value: "\(libraryManager.favoriteTracks.count)", label: "Favorites")
+                        StatCard(icon: "music.note.list", value: "\(historyCount)", label: "Listened")
+                        StatCard(icon: "clock.fill", value: listeningTime, label: "Minutes")
                     }
                     .padding(.horizontal, 16)
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 32)
 
                 // MARK: - Quick Links
                 VStack(spacing: 0) {
-                    ProfileLink(icon: "heart.fill", title: "Favorite Tracks", subtitle: "\(libraryManager.favoriteTracks.count) tracks")
-                    ProfileLink(icon: "clock.arrow.circlepath", title: "Listening History", subtitle: "\(audioPlayer.playHistory.count) tracks")
-                    ProfileLink(icon: "square.and.arrow.up", title: "Share Profile", subtitle: "Coming soon", disabled: true)
+                    ProfileLink(icon: "heart.fill", title: "Favorite Tracks", subtitle: "\(libraryManager.favoriteTracks.count) tracks") {
+                        // Could navigate to library favorites
+                    }
+                    ProfileLink(icon: "music.note.list", title: "My Playlists", subtitle: "\(playlistManager.userPlaylists.count) playlists") {
+                        // Could navigate to playlists
+                    }
+                    ProfileLink(icon: "clock.arrow.circlepath", title: "Listening History", subtitle: "\(historyCount) tracks") {
+                        // Could navigate to history
+                    }
                 }
                 .padding(.horizontal, 16)
 
@@ -165,6 +231,16 @@ struct ProfileView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Theme.background)
         }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Theme.background)
+        }
+    }
+
+    private var historyCount: Int {
+        max(audioPlayer.playHistory.count, profileManager.profile.historyCount)
     }
 
     private var listeningTime: String {
@@ -174,10 +250,152 @@ struct ProfileView: View {
     }
 
     private var avatarInitial: String {
-        let name = authService.currentUser?.name ?? authService.currentUser?.email ?? ""
+        let name = profileManager.profile.displayName.isEmpty
+            ? (authService.currentUser?.name ?? authService.currentUser?.email ?? "")
+            : profileManager.profile.displayName
         return String(name.prefix(1)).uppercased()
     }
+}
 
+// MARK: - Edit Profile View
+
+struct EditProfileView: View {
+    @Environment(ProfileManager.self) private var profileManager
+    @Environment(AuthService.self) private var authService
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var username = ""
+    @State private var displayName = ""
+    @State private var avatarUrl = ""
+    @State private var banner = ""
+    @State private var status = ""
+    @State private var about = ""
+    @State private var website = ""
+    @State private var lastfmUsername = ""
+    @State private var playlistsPublic = true
+    @State private var lastfmPublic = true
+    @State private var isSaving = false
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section("Display") {
+                    ProfileTextField(label: "Username", text: $username, icon: "at")
+                    ProfileTextField(label: "Display Name", text: $displayName, icon: "person")
+                    ProfileTextField(label: "Avatar URL", text: $avatarUrl, icon: "photo")
+                    ProfileTextField(label: "Banner URL", text: $banner, icon: "photo.on.rectangle")
+                }
+
+                Section("About") {
+                    ProfileTextField(label: "Status", text: $status, icon: "text.bubble")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Bio")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.mutedForeground)
+                        TextEditor(text: $about)
+                            .font(.system(size: 15))
+                            .foregroundColor(Theme.foreground)
+                            .frame(minHeight: 80)
+                            .scrollContentBackground(.hidden)
+                    }
+                    ProfileTextField(label: "Website", text: $website, icon: "link")
+                }
+
+                Section("Integrations") {
+                    ProfileTextField(label: "Last.fm Username", text: $lastfmUsername, icon: "music.note")
+                }
+
+                Section("Privacy") {
+                    Toggle("Public Playlists", isOn: $playlistsPublic)
+                        .tint(Theme.primary)
+                    Toggle("Public Last.fm", isOn: $lastfmPublic)
+                        .tint(Theme.primary)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Edit Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save()
+                    } label: {
+                        if isSaving {
+                            ProgressView().tint(Theme.foreground)
+                        } else {
+                            Text("Save").fontWeight(.semibold)
+                        }
+                    }
+                    .disabled(isSaving)
+                }
+            }
+            .onAppear {
+                let p = profileManager.profile
+                username = p.username
+                displayName = p.displayName
+                avatarUrl = p.avatarUrl
+                banner = p.banner
+                status = p.status
+                about = p.about
+                website = p.website
+                lastfmUsername = p.lastfmUsername
+                playlistsPublic = p.privacy.playlists == "public"
+                lastfmPublic = p.privacy.lastfm == "public"
+            }
+        }
+    }
+
+    private func save() {
+        isSaving = true
+        profileManager.profile.username = username.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.displayName = displayName.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.avatarUrl = avatarUrl.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.banner = banner.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.status = status.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.about = about.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.website = website.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.lastfmUsername = lastfmUsername.trimmingCharacters(in: .whitespaces)
+        profileManager.profile.privacy.playlists = playlistsPublic ? "public" : "private"
+        profileManager.profile.privacy.lastfm = lastfmPublic ? "public" : "private"
+
+        guard let uid = authService.currentUser?.uid else {
+            isSaving = false
+            dismiss()
+            return
+        }
+
+        Task {
+            await profileManager.saveToCloud(uid: uid)
+            await MainActor.run {
+                isSaving = false
+                dismiss()
+            }
+        }
+    }
+}
+
+private struct ProfileTextField: View {
+    let label: String
+    @Binding var text: String
+    var icon: String = ""
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if !icon.isEmpty {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(Theme.mutedForeground)
+                    .frame(width: 20)
+            }
+            TextField(label, text: $text)
+                .font(.system(size: 15))
+                .foregroundColor(Theme.foreground)
+        }
+    }
 }
 
 // MARK: - Sign In Button
@@ -243,11 +461,10 @@ private struct ProfileLink: View {
     let title: String
     let subtitle: String
     var disabled: Bool = false
+    var action: () -> Void = {}
 
     var body: some View {
-        Button {
-            // Not implemented yet
-        } label: {
+        Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 16))
@@ -285,4 +502,6 @@ private struct ProfileLink: View {
         .environment(AudioPlayerService())
         .environment(LibraryManager.shared)
         .environment(AuthService.shared)
+        .environment(ProfileManager.shared)
+        .environment(PlaylistManager.shared)
 }
