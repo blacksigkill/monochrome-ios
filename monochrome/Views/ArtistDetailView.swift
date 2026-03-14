@@ -5,6 +5,7 @@ struct ArtistDetailView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(DownloadManager.self) private var downloadManager
 
     @State private var artistDetail: ArtistDetail?
     @State private var bio: String?
@@ -191,6 +192,11 @@ struct ArtistDetailView: View {
             }
             .buttonStyle(.borderless)
 
+            // Download top tracks
+            if let tracks = artistDetail?.topTracks, !tracks.isEmpty {
+                artistDownloadButton(tracks)
+            }
+
             Spacer()
 
             // Play button
@@ -210,6 +216,32 @@ struct ArtistDetailView: View {
             .buttonStyle(.borderless)
         }
         .padding(.horizontal, 16)
+    }
+
+    private func artistDownloadButton(_ tracks: [Track]) -> some View {
+        let allDownloaded = tracks.allSatisfy { downloadManager.isDownloaded($0.id) }
+        let someDownloading = tracks.contains { downloadManager.isDownloading($0.id) }
+
+        return Button(action: {
+            if !allDownloaded {
+                downloadManager.downloadTracks(tracks)
+            }
+        }) {
+            if allDownloaded {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundColor(Theme.highlight)
+            } else if someDownloading {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.8)
+            } else {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 22))
+                    .foregroundColor(Theme.mutedForeground)
+            }
+        }
+        .buttonStyle(.borderless)
     }
 
     // MARK: - Popular Tracks

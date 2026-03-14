@@ -6,6 +6,7 @@ struct UserPlaylistDetailView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(AudioPlayerService.self) private var audioPlayer
     @Environment(PlaylistManager.self) private var playlistManager
+    @Environment(DownloadManager.self) private var downloadManager
 
     @State private var showRenameAlert = false
     @State private var renameText = ""
@@ -255,6 +256,9 @@ struct UserPlaylistDetailView: View {
                 }
                 .buttonStyle(.borderless)
 
+                // Download
+                playlistDownloadButton(playlist.tracks)
+
                 // Play
                 Button {
                     guard !playlist.tracks.isEmpty else { return }
@@ -300,6 +304,39 @@ struct UserPlaylistDetailView: View {
             .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Download Button
+
+    private func playlistDownloadButton(_ tracks: [Track]) -> some View {
+        let allDownloaded = !tracks.isEmpty && tracks.allSatisfy { downloadManager.isDownloaded($0.id) }
+        let someDownloading = tracks.contains { downloadManager.isDownloading($0.id) }
+
+        return Button {
+            if !allDownloaded {
+                downloadManager.downloadTracks(tracks)
+            }
+        } label: {
+            Group {
+                if allDownloaded {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(Theme.highlight)
+                } else if someDownloading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(0.7)
+                } else {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 18))
+                        .foregroundColor(Theme.foreground)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(Theme.secondary)
+            .clipShape(Circle())
+        }
+        .buttonStyle(.borderless)
     }
 
     // MARK: - Cover
