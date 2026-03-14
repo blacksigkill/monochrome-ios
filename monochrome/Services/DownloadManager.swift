@@ -82,8 +82,6 @@ class DownloadManager {
                     return
                 }
 
-                print("[Download] Using stream URL: \(streamUrlStr)")
-
                 let ext = streamUrl.pathExtension.isEmpty ? "flac" : streamUrl.pathExtension
                 let relativePath = SettingsManager.shared.generateFilePath(for: track, extension: ext)
                 let destURL = downloadsDir.appendingPathComponent(relativePath)
@@ -110,6 +108,9 @@ class DownloadManager {
                     try FileManager.default.removeItem(at: destURL)
                 }
                 try FileManager.default.moveItem(at: tempURL, to: destURL)
+
+                // Embed metadata (title, artist, album, cover art) into the audio file
+                await self.embedMetadata(track: track, fileURL: destURL)
 
                 let entry = DownloadedTrack(
                     trackId: trackId,
@@ -170,6 +171,30 @@ class DownloadManager {
         manifest.values.filter { entry in
             FileManager.default.fileExists(atPath: downloadsDir.appendingPathComponent(entry.fileName).path)
         }.count
+    }
+
+    // MARK: - Metadata Embedding
+
+    private func embedMetadata(track: Track, fileURL: URL) async {
+        var coverData: Data?
+        if let coverUrl = MonochromeAPI().getImageUrl(id: track.album?.cover, size: 640) {
+            if let (data, response) = try? await URLSession.shared.data(from: coverUrl),
+               (response as? HTTPURLResponse)?.statusCode == 200, data.count > 1000 {
+                coverData = data
+            }
+        }
+
+        let metadata = AudioMetadataEmbedder.Metadata(
+            title: track.title,
+            artist: track.artist?.name ?? "",
+            album: track.album?.title ?? "",
+            trackNumber: track.trackNumber,
+            totalTracks: track.album?.numberOfTracks,
+            year: track.album?.releaseDate.flatMap { String($0.prefix(4)) } ?? track.releaseYear,
+            coverData: coverData
+        )
+
+        AudioMetadataEmbedder.shared.embed(at: fileURL, metadata: metadata)
     }
 
     // MARK: - Persistence

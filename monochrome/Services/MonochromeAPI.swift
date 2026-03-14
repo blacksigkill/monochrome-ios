@@ -463,14 +463,12 @@ class MonochromeAPI {
     }
 
     func fetchStreamUrlWithFallback(trackId: Int, preferredQuality: AudioQuality) async -> String? {
-        let fallbackOrder: [AudioQuality] = [
-            preferredQuality,
-            .hiResLossless,
-            .lossless,
-            .high,
-            .medium,
-            .low
-        ]
+        // Fallback: try preferred quality, then only LOWER qualities (never go up)
+        let allDescending: [AudioQuality] = [.hiResLossless, .lossless, .high, .medium, .low]
+        let preferredIndex = allDescending.firstIndex(of: preferredQuality) ?? 0
+        // Drop everything above preferred, then skip preferred itself from the tail
+        let lowerQualities = allDescending.dropFirst(preferredIndex + 1)
+        let fallbackOrder = [preferredQuality] + lowerQualities
 
         var triedQualities: [String] = []
 

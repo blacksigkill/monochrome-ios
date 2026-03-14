@@ -96,7 +96,8 @@ class SettingsManager {
     }
 
     func sanitizeFileName(_ name: String) -> String {
-        let invalidChars = CharacterSet(charactersIn: ":/\\?%*|\"<>")
+        // Only `/` and `:` are truly invalid on iOS/macOS (HFS+/APFS)
+        let invalidChars = CharacterSet(charactersIn: "/:")
         return name.components(separatedBy: invalidChars).joined(separator: "_")
     }
 
