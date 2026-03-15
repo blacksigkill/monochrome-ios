@@ -72,7 +72,7 @@ struct ProfileView: View {
 
                 // MARK: - Banner
                 if authService.isAuthenticated && !profileManager.profile.banner.isEmpty {
-                    AsyncImage(url: URL(string: profileManager.profile.banner)) { phase in
+                    CachedAsyncImage(url: URL(string: profileManager.profile.banner)) { phase in
                         if let image = phase.image {
                             image.resizable().scaledToFill()
                         } else {
@@ -93,7 +93,7 @@ struct ProfileView: View {
                 VStack(spacing: 12) {
                     // Avatar
                     if authService.isAuthenticated && !profileManager.profile.avatarUrl.isEmpty {
-                        AsyncImage(url: URL(string: profileManager.profile.avatarUrl)) { phase in
+                        CachedAsyncImage(url: URL(string: profileManager.profile.avatarUrl)) { phase in
                             if let image = phase.image {
                                 image.resizable().scaledToFill()
                             } else {
@@ -194,7 +194,7 @@ struct ProfileView: View {
                                 ForEach(profileManager.profile.favoriteAlbums) { album in
                                     VStack(spacing: 6) {
                                         if !album.cover.isEmpty, let url = URL(string: album.cover) {
-                                            AsyncImage(url: url) { phase in
+                                            CachedAsyncImage(url: url) { phase in
                                                 if let image = phase.image {
                                                     image.resizable().scaledToFill()
                                                 } else {
@@ -338,7 +338,7 @@ struct ProfileView: View {
 
             HStack(spacing: 8) {
                 if !imageUrl.isEmpty, let url = URL(string: imageUrl) {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image.resizable().scaledToFill()
                         } else {
@@ -490,7 +490,7 @@ struct EditProfileView: View {
                                         selectStatus(suggestion)
                                     } label: {
                                         HStack(spacing: 10) {
-                                            AsyncImage(url: MonochromeAPI().getImageUrl(id: suggestion.image, size: 80)) { phase in
+                                            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: suggestion.image, size: 80)) { phase in
                                                 if let image = phase.image {
                                                     image.resizable().scaledToFill()
                                                 } else {
@@ -537,7 +537,7 @@ struct EditProfileView: View {
                     ForEach(Array(favoriteAlbums.enumerated()), id: \.element.id) { index, album in
                         HStack(spacing: 10) {
                             if !album.cover.isEmpty {
-                                AsyncImage(url: URL(string: album.cover)) { phase in
+                                CachedAsyncImage(url: URL(string: album.cover)) { phase in
                                     if let image = phase.image {
                                         image.resizable().scaledToFill()
                                     } else {
@@ -610,7 +610,7 @@ struct EditProfileView: View {
                                         addFavoriteAlbum(album)
                                     } label: {
                                         HStack(spacing: 10) {
-                                            AsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover ?? "", size: 80)) { phase in
+                                            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover ?? "", size: 80)) { phase in
                                                 if let image = phase.image {
                                                     image.resizable().scaledToFill()
                                                 } else {
@@ -742,7 +742,7 @@ struct EditProfileView: View {
         showStatusSuggestions = true
 
         statusTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
 
             do {
@@ -871,12 +871,12 @@ struct EditProfileView: View {
             return
         }
         favSearchTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             do {
-                let r = try await MonochromeAPI().searchAll(query: trimmed)
+                let albums = try await MonochromeAPI().searchAlbums(query: trimmed)
                 guard !Task.isCancelled else { return }
-                await MainActor.run { favAlbumResults = r.albums }
+                await MainActor.run { favAlbumResults = albums }
             } catch {}
         }
     }
@@ -975,7 +975,7 @@ private struct ImageUploadRow: View {
                     ProgressView()
                         .scaleEffect(0.8)
                 } else if !currentUrl.isEmpty {
-                    AsyncImage(url: URL(string: currentUrl)) { phase in
+                    CachedAsyncImage(url: URL(string: currentUrl)) { phase in
                         if let image = phase.image {
                             image.resizable().scaledToFill()
                         } else {
@@ -1206,7 +1206,7 @@ private struct ProfileTrackRow: View {
                     .frame(width: 28, alignment: .center)
                 
                 if let coverUrl = MonochromeAPI().getImageUrl(id: track.album?.cover) {
-                    AsyncImage(url: coverUrl) { phase in
+                    CachedAsyncImage(url: coverUrl) { phase in
                         if let image = phase.image {
                             image.resizable().scaledToFill()
                         } else {

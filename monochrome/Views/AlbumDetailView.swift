@@ -71,7 +71,7 @@ struct AlbumDetailView: View {
 
     private var albumHeader: some View {
         VStack(spacing: 16) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: displayAlbum.cover, size: 640)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: displayAlbum.cover, size: 640)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fit)
                 } else {

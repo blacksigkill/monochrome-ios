@@ -174,7 +174,7 @@ struct QueueSheetView: View {
 
     private func trackRow(title: String, artist: String, coverUrl: URL?, duration: Int, isPlaying: Bool, audioQuality: String? = nil, mediaTags: [String]? = nil) -> some View {
         HStack(spacing: 12) {
-            AsyncImage(url: coverUrl) { phase in
+            CachedAsyncImage(url: coverUrl) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {

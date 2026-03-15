@@ -233,7 +233,7 @@ struct LibraryView: View {
                     ForEach(libraryManager.favoriteArtists) { artist in
                         Button(action: { navigationPath.append(artist) }) {
                             VStack(spacing: 8) {
-                                AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 320)) { phase in
+                                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 320)) { phase in
                                     if let image = phase.image {
                                         image.resizable().scaledToFill()
                                     } else {
@@ -501,7 +501,7 @@ private struct LibraryAlbumRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -543,7 +543,7 @@ private struct LibraryArtistRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 160)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 160)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -576,7 +576,7 @@ private struct LibraryPlaylistRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: playlistImageURL) { phase in
+            CachedAsyncImage(url: playlistImageURL) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -630,7 +630,7 @@ private struct LibraryMixRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: mixImageURL) { phase in
+            CachedAsyncImage(url: mixImageURL) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -680,7 +680,7 @@ private struct PlaylistCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AsyncImage(url: cardImageURL) { phase in
+            CachedAsyncImage(url: cardImageURL) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -721,7 +721,7 @@ private struct MixCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AsyncImage(url: cardImageURL) { phase in
+            CachedAsyncImage(url: cardImageURL) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -1000,7 +1000,7 @@ private struct FolderRow: View {
 @ViewBuilder
 private func userPlaylistCover(_ playlist: UserPlaylist) -> some View {
     if !playlist.cover.isEmpty {
-        AsyncImage(url: playlist.cover.hasPrefix("http") ? URL(string: playlist.cover) : MonochromeAPI().getImageUrl(id: playlist.cover)) { phase in
+        CachedAsyncImage(url: playlist.cover.hasPrefix("http") ? URL(string: playlist.cover) : MonochromeAPI().getImageUrl(id: playlist.cover)) { phase in
             if let image = phase.image {
                 image.resizable().scaledToFill()
             } else {
@@ -1019,7 +1019,7 @@ private func userPlaylistCover(_ playlist: UserPlaylist) -> some View {
             }
         }
     } else if let first = playlist.images.first {
-        AsyncImage(url: MonochromeAPI().getImageUrl(id: first)) { phase in
+        CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: first)) { phase in
             if let image = phase.image {
                 image.resizable().scaledToFill()
             } else {
@@ -1033,7 +1033,7 @@ private func userPlaylistCover(_ playlist: UserPlaylist) -> some View {
 
 @ViewBuilder
 private func coverTile(_ imageId: String) -> some View {
-    AsyncImage(url: MonochromeAPI().getImageUrl(id: imageId)) { phase in
+    CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: imageId)) { phase in
         if let image = phase.image {
             image.resizable().scaledToFill()
         } else {

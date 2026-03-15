@@ -50,7 +50,7 @@ struct ArtistDetailView: View {
 
             ZStack(alignment: .bottomLeading) {
                 // Artist image with parallax
-                AsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
+                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
                     if let image = phase.image {
                         image.resizable()
                              .aspectRatio(contentMode: .fill)
@@ -354,7 +354,7 @@ struct ArtistDetailView: View {
             // Bio card with artist image
             Button(action: { showFullBio = true }) {
                 VStack(alignment: .leading, spacing: 12) {
-                    AsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 480)) { phase in
+                    CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 480)) { phase in
                         if let image = phase.image {
                             image.resizable()
                                  .aspectRatio(contentMode: .fill)
@@ -398,7 +398,7 @@ struct ArtistDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    AsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
+                    CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
                         if let image = phase.image {
                             image.resizable()
                                  .aspectRatio(contentMode: .fill)
@@ -471,14 +471,16 @@ struct ArtistDetailView: View {
                     ForEach(similarArtists) { similarArtist in
                         Button(action: { navigationPath.append(similarArtist) }) {
                             VStack(spacing: 8) {
-                                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: similarArtist.picture, size: 320)) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Circle().fill(Theme.secondary)
-                                        .overlay(
-                                            Image(systemName: "person.fill")
-                                                .foregroundColor(Theme.mutedForeground.opacity(0.3))
-                                        )
+                                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: similarArtist.picture, size: 320)) { phase in
+                                    if let image = phase.image {
+                                        image.resizable().scaledToFill()
+                                    } else {
+                                        Circle().fill(Theme.secondary)
+                                            .overlay(
+                                                Image(systemName: "person.fill")
+                                                    .foregroundColor(Theme.mutedForeground.opacity(0.3))
+                                            )
+                                    }
                                 }
                                 .frame(width: 120, height: 120)
                                 .clipShape(Circle())
@@ -845,59 +847,6 @@ private struct BioTextView: View {
     }
 }
 
-// MARK: - Cached Async Image (persistent NSCache, survives view recycling)
-
-private class ImageCache {
-    static let shared = ImageCache()
-    private let cache = NSCache<NSURL, UIImage>()
-
-    init() {
-        cache.countLimit = 300
-        cache.totalCostLimit = 50 * 1024 * 1024
-    }
-
-    func get(_ url: URL) -> UIImage? { cache.object(forKey: url as NSURL) }
-    func set(_ url: URL, image: UIImage) { cache.setObject(image, forKey: url as NSURL) }
-}
-
-private struct CachedAsyncImage<I: View, P: View>: View {
-    let url: URL?
-    let content: (Image) -> I
-    let placeholder: () -> P
-
-    @State private var uiImage: UIImage?
-
-    init(url: URL?, @ViewBuilder content: @escaping (Image) -> I, @ViewBuilder placeholder: @escaping () -> P) {
-        self.url = url
-        self.content = content
-        self.placeholder = placeholder
-        // Synchronous cache check — cached images appear instantly, no placeholder flash
-        if let url, let cached = ImageCache.shared.get(url) {
-            _uiImage = State(initialValue: cached)
-        }
-    }
-
-    var body: some View {
-        Group {
-            if let uiImage {
-                content(Image(uiImage: uiImage))
-            } else {
-                placeholder()
-            }
-        }
-        .task(id: url) {
-            guard uiImage == nil, let url else { return }
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if let img = UIImage(data: data) {
-                    ImageCache.shared.set(url, image: img)
-                    uiImage = img
-                }
-            } catch {}
-        }
-    }
-}
-
 // MARK: - Album Card
 
 struct AlbumCard: View {
@@ -905,7 +854,7 @@ struct AlbumCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {

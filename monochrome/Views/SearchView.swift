@@ -18,6 +18,15 @@ struct SearchView: View {
     @State private var searchHistory: [String] = []
     @State private var suggestions: [Suggestion] = []
     @State private var autocompleteTask: Task<Void, Never>?
+    @State private var autocompleteCache: SearchCache?
+
+    private struct SearchCache {
+        let query: String
+        let artists: [Artist]
+        let albums: [Album]
+        let tracks: [Track]
+        let playlists: [Playlist]
+    }
 
     private let historyKey = "search_history"
     private let maxHistory = 20
@@ -452,6 +461,15 @@ struct SearchView: View {
         suggestions = []
         addToHistory(query)
 
+        if let cache = autocompleteCache, cache.query.lowercased() == query.lowercased() {
+            searchArtists = cache.artists
+            searchAlbums = cache.albums
+            searchTracks = cache.tracks
+            searchPlaylists = cache.playlists
+            isSearching = false
+            return
+        }
+
         Task {
             do {
                 let r = try await MonochromeAPI().searchAll(query: query)
@@ -538,7 +556,7 @@ struct SearchView: View {
     private func suggestionIcon(_ suggestion: Suggestion) -> some View {
         switch suggestion {
         case .artist(let artist):
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 160)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture, size: 160)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -552,7 +570,7 @@ struct SearchView: View {
             .frame(width: 36, height: 36)
             .clipShape(Circle())
         case .album(let album):
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover, size: 160)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover, size: 160)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -566,7 +584,7 @@ struct SearchView: View {
             .frame(width: 36, height: 36)
             .clipShape(RoundedRectangle(cornerRadius: 4))
         case .playlist(let playlist):
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: playlist.image, size: 160)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: playlist.image, size: 160)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -631,7 +649,7 @@ struct SearchView: View {
         guard trimmed.count >= 2 else { return }
 
         autocompleteTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
 
             do {
@@ -645,6 +663,10 @@ struct SearchView: View {
                 results += r.playlists.prefix(2).map { .playlist($0) }
 
                 await MainActor.run {
+                    autocompleteCache = SearchCache(
+                        query: trimmed, artists: r.artists, albums: r.albums,
+                        tracks: r.tracks, playlists: r.playlists
+                    )
                     withAnimation(.easeOut(duration: 0.15)) {
                         suggestions = results
                     }
@@ -661,7 +683,7 @@ struct ArtistSearchResultRow: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artist.picture)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {
@@ -687,7 +709,7 @@ struct AlbumSearchResultRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: album.cover)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {
@@ -720,7 +742,7 @@ struct PlaylistSearchResultRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: playlist.image)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: playlist.image)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {

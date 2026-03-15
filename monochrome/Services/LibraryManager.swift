@@ -72,16 +72,10 @@ class LibraryManager {
                         pending -= 1
                     }
                     group.addTask {
-                        if let fetched = try? await api.fetchTrack(id: track.id),
-                           fetched.audioQuality != nil {
-                            return (track.id, fetched)
-                        }
-                        let queryParts = [track.title, track.artist?.name].compactMap { $0 }.filter { !$0.isEmpty }
-                        guard !queryParts.isEmpty else { return (track.id, nil) }
-                        if let match = try? await api.searchTracks(query: queryParts.joined(separator: " "))
-                            .first(where: { $0.id == track.id }),
-                           match.audioQuality != nil {
-                            return (track.id, match)
+                        // Use the proxy to check actual available quality (Tidal v1 metadata is unreliable)
+                        if let quality = await api.fetchBestAvailableQuality(trackId: track.id) {
+                            let updated = track.withQuality(quality)
+                            return (track.id, updated)
                         }
                         return (track.id, nil)
                     }

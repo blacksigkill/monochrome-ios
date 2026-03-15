@@ -77,7 +77,7 @@ struct PlaylistDetailView: View {
 
     private var playlistHeader: some View {
         VStack(spacing: 16) {
-            AsyncImage(url: imageURL(size: 640)) { phase in
+            CachedAsyncImage(url: imageURL(size: 640)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fit)
                 } else {

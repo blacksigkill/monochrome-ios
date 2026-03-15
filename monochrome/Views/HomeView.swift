@@ -150,7 +150,7 @@ struct RecentTrackCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 0) {
-                AsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
+                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
                     if let image = phase.image {
                         image.resizable().aspectRatio(contentMode: .fill)
                     } else {

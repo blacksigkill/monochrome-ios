@@ -351,7 +351,7 @@ struct UserPlaylistDetailView: View {
     @ViewBuilder
     private func playlistCover(_ playlist: UserPlaylist) -> some View {
         if !playlist.cover.isEmpty {
-            AsyncImage(url: coverUrl(for: playlist.cover)) { phase in
+            CachedAsyncImage(url: coverUrl(for: playlist.cover)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -372,7 +372,7 @@ struct UserPlaylistDetailView: View {
                 }
             }
         } else if let first = playlist.images.first {
-            AsyncImage(url: MonochromeAPI().getImageUrl(id: first)) { phase in
+            CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: first)) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -385,7 +385,7 @@ struct UserPlaylistDetailView: View {
     }
 
     private func coverImage(_ id: String, size: CGFloat) -> some View {
-        AsyncImage(url: MonochromeAPI().getImageUrl(id: id)) { phase in
+        CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: id)) { phase in
             if let image = phase.image {
                 image.resizable().scaledToFill()
             } else {

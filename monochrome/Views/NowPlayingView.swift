@@ -117,7 +117,7 @@ struct NowPlayingView: View {
         ZStack {
             Theme.background
             if let coverUrl = audioPlayer.currentCoverUrl {
-                AsyncImage(url: coverUrl) { phase in
+                CachedAsyncImage(url: coverUrl) { phase in
                     if let image = phase.image {
                         image.resizable()
                             .aspectRatio(contentMode: .fill)
@@ -171,7 +171,7 @@ struct NowPlayingView: View {
     // MARK: - Album Art
 
     private var albumArt: some View {
-        AsyncImage(url: audioPlayer.currentCoverUrl) { phase in
+        CachedAsyncImage(url: audioPlayer.currentCoverUrl) { phase in
             if let image = phase.image {
                 image.resizable()
                     .aspectRatio(contentMode: .fit)

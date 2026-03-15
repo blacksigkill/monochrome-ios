@@ -12,6 +12,9 @@ class DownloadManager {
     private var manifest: [Int: DownloadedTrack] = [:]
     private let downloadsDir: URL
 
+    @ObservationIgnored
+    private var coverCache: [String: Data] = [:]
+
     struct DownloadedTrack: Codable {
         let trackId: Int
         let title: String
@@ -177,10 +180,14 @@ class DownloadManager {
 
     private func embedMetadata(track: Track, fileURL: URL) async {
         var coverData: Data?
-        if let coverUrl = MonochromeAPI().getImageUrl(id: track.album?.cover, size: 640) {
+        let coverId = track.album?.cover
+        if let coverId, let cached = coverCache[coverId] {
+            coverData = cached
+        } else if let coverUrl = MonochromeAPI().getImageUrl(id: coverId, size: 640) {
             if let (data, response) = try? await URLSession.shared.data(from: coverUrl),
                (response as? HTTPURLResponse)?.statusCode == 200, data.count > 1000 {
                 coverData = data
+                if let coverId { coverCache[coverId] = data }
             }
         }
 

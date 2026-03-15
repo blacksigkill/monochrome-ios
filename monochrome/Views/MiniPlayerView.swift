@@ -140,7 +140,7 @@ struct MiniPlayerView: View {
 
     private var currentTrackRow: some View {
         HStack(spacing: 10) {
-            AsyncImage(url: audioPlayer.currentCoverUrl) { phase in
+            CachedAsyncImage(url: audioPlayer.currentCoverUrl) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {
@@ -196,7 +196,7 @@ struct MiniPlayerView: View {
 
     private func miniTrackRow(title: String, artist: String, coverUrl: URL?) -> some View {
         HStack(spacing: 10) {
-            AsyncImage(url: coverUrl) { phase in
+            CachedAsyncImage(url: coverUrl) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else {

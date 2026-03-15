@@ -26,7 +26,7 @@ struct TrackRow: View {
                     .foregroundColor(isCurrentTrack ? Theme.highlight : Theme.mutedForeground)
                     .frame(width: 28, alignment: .center)
             } else if showCover {
-                AsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
+                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
                     if let image = phase.image {
                         image.resizable().aspectRatio(contentMode: .fill)
                     } else {
@@ -206,7 +206,7 @@ struct TrackOptionsSheet: View {
         VStack(spacing: 0) {
             // Track header
             HStack(spacing: 14) {
-                AsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
+                CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: track.album?.cover)) { phase in
                     if let image = phase.image {
                         image.resizable().aspectRatio(contentMode: .fill)
                     } else {
@@ -456,8 +456,15 @@ struct QualityBadge: View {
         guard SettingsManager.shared.showTrackQuality,
               let trackQ = audioQuality,
               let trackLevel = Self.qualityLevel[trackQ] else { return nil }
-        let streamLevel = Self.qualityLevel[SettingsManager.shared.streamQuality.rawValue] ?? 2
+
         let normalizedTags = Set((mediaTags ?? []).map { $0.uppercased() })
+
+        // Dolby Atmos reports audioQuality "LOW" but is actually high quality spatial audio
+        if normalizedTags.contains("DOLBY_ATMOS") {
+            return "Atmos"
+        }
+
+        let streamLevel = Self.qualityLevel[SettingsManager.shared.streamQuality.rawValue] ?? 2
         let isHiResTagged = !normalizedTags.isEmpty && !Self.hiResTags.isDisjoint(with: normalizedTags)
         let hiResLevel = Self.qualityLevel["HI_RES_LOSSLESS"] ?? trackLevel
         let effectiveTrackLevel = isHiResTagged ? max(trackLevel, hiResLevel) : trackLevel

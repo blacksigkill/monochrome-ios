@@ -86,6 +86,22 @@ class MonochromeAPI {
         return (artists, albums, tracks, playlists)
     }
 
+    func searchAlbums(query: String) async throws -> [Album] {
+        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(baseURL)/search/?al=\(q)") else { throw URLError(.badURL) }
+
+        let (data, response) = try await urlSession.data(for: request(for: url))
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataObj = json["data"] as? [String: Any],
+              let albumsDict = dataObj["albums"] as? [String: Any],
+              let items = albumsDict["items"] as? [[String: Any]],
+              let arrData = try? JSONSerialization.data(withJSONObject: items),
+              let decoded = try? JSONDecoder().decode([Album].self, from: arrData) else { return [] }
+        return decoded.filter { $0.cover != nil }
+    }
+
     private static func parsePlaylistSearchResults(data: Data) -> [Playlist] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
 
@@ -436,6 +452,11 @@ class MonochromeAPI {
     }
 
     func fetchTrack(id: Int) async throws -> Track {
+        let cacheKey = "track_\(id)"
+        if let cached: Track = CacheService.shared.get(forKey: cacheKey) {
+            return cached
+        }
+
         guard let url = URL(string: "https://api.tidal.com/v1/tracks/\(id)?countryCode=GB") else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.setValue("Monochrome-iOS/1.0", forHTTPHeaderField: "User-Agent")
@@ -444,7 +465,9 @@ class MonochromeAPI {
         let (data, response) = try await urlSession.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
 
-        return try JSONDecoder().decode(Track.self, from: data)
+        let track = try JSONDecoder().decode(Track.self, from: data)
+        CacheService.shared.set(forKey: cacheKey, value: track)
+        return track
     }
 
     func fetchStreamUrl(trackId: Int, quality: AudioQuality = .high) async throws -> String? {
@@ -487,6 +510,26 @@ class MonochromeAPI {
         }
 
         print("[Audio] All qualities failed: \(triedQualities)")
+        return nil
+    }
+
+    /// Check the best available quality for a track via the proxy (top-down from user's stream setting).
+    /// Returns the quality raw value (e.g. "HI_RES_LOSSLESS", "LOSSLESS", "HIGH") or nil.
+    func fetchBestAvailableQuality(trackId: Int) async -> String? {
+        let streamQuality = SettingsManager.shared.streamQuality
+        let allDescending: [AudioQuality] = [.hiResLossless, .lossless, .high]
+        let startIndex = allDescending.firstIndex(of: streamQuality) ?? 0
+        let toTry = Array(allDescending.dropFirst(startIndex))
+
+        for quality in toTry {
+            do {
+                if let _ = try await fetchStreamUrl(trackId: trackId, quality: quality) {
+                    return quality.rawValue
+                }
+            } catch {
+                continue
+            }
+        }
         return nil
     }
 

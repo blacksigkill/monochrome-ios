@@ -43,6 +43,10 @@ enum QualityCache {
         get(trackId) != nil
     }
 
+    static func clearAll() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     static func store(_ entries: [(id: Int, audioQuality: String?, mediaTags: [String]?)]) {
         guard !entries.isEmpty else { return }
         var dict = loadAll()
