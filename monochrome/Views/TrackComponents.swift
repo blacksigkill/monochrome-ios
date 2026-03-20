@@ -6,10 +6,10 @@ struct TrackRow: View {
     var previousTracks: [Track] = []
     var showCover: Bool = true
     var showIndex: Int? = nil
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(DownloadManager.self) private var downloadManager
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var downloadManager: DownloadManager
     @State private var showOptions = false
     @State private var confirmationMessage: String? = nil
     
@@ -50,10 +50,16 @@ struct TrackRow: View {
 
                 HStack(spacing: 4) {
                     if isCurrentTrack && audioPlayer.isPlaying {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 10))
-                            .foregroundColor(Theme.highlight)
-                            .symbolEffect(.variableColor.iterative, isActive: true)
+                        if #available(iOS 17.0, *) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 10))
+                                .foregroundColor(Theme.highlight)
+                                .symbolEffect(.variableColor.iterative, isActive: true)
+                        } else {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 10))
+                                .foregroundColor(Theme.highlight)
+                        }
                     }
                     Text(track.artist?.name ?? "Unknown")
                 }
@@ -131,9 +137,9 @@ struct TrackRow: View {
                 navigationPath: $navigationPath,
                 isPresented: $showOptions
             )
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(Theme.card)
+            .compatPresentationDetents(medium: true)
+            .compatPresentationDragIndicator()
+            .compatPresentationBackground(Theme.card)
         }
     }
 
@@ -167,11 +173,11 @@ struct TrackRow: View {
 struct TrackOptionsSheet: View {
     let track: Track
     let queue: [Track]
-    @Binding var navigationPath: NavigationPath
+    @Binding var navigationPath: CompatNavigationPath
     @Binding var isPresented: Bool
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(DownloadManager.self) private var downloadManager
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var downloadManager: DownloadManager
     @State private var showAddToPlaylist = false
 
     @ViewBuilder
@@ -297,9 +303,9 @@ struct TrackOptionsSheet: View {
         }
         .sheet(isPresented: $showAddToPlaylist) {
             AddToPlaylistSheet(track: track, isPresented: $showAddToPlaylist)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Theme.card)
+                .compatPresentationDetents(medium: true)
+                .compatPresentationDragIndicator()
+                .compatPresentationBackground(Theme.card)
         }
     }
 }
@@ -307,7 +313,7 @@ struct TrackOptionsSheet: View {
 struct AddToPlaylistSheet: View {
     let track: Track
     @Binding var isPresented: Bool
-    @Environment(PlaylistManager.self) private var playlistManager
+    @EnvironmentObject private var playlistManager: PlaylistManager
     @State private var showCreateNew = false
     @State private var newName = ""
 
@@ -384,6 +390,7 @@ struct AddToPlaylistSheet: View {
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -429,6 +436,7 @@ struct OptionRow: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

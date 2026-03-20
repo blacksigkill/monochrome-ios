@@ -1,18 +1,17 @@
 import Foundation
-import Observation
+import Combine
 import AuthenticationServices
 import UIKit
 
-@Observable
-class AuthService {
+class AuthService: ObservableObject {
     static let shared = AuthService()
 
     private let endpoint = "https://auth.monochrome.tf/v1"
     private let projectId = "auth-for-monochrome"
 
-    private(set) var currentUser: AuthUser?
-    private(set) var isLoading = false
-    var errorMessage: String?
+    @Published private(set) var currentUser: AuthUser?
+    @Published private(set) var isLoading = false
+    @Published var errorMessage: String?
 
     private let defaults = UserDefaults.standard
     private let sessionKey = "monochrome_auth_session"

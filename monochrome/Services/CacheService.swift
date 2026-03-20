@@ -1,23 +1,21 @@
 import Foundation
-import Observation
+import Combine
 
-@Observable
-class CacheService {
+class CacheService: ObservableObject {
     static let shared = CacheService()
 
     // MARK: - Settings (persisted)
 
-    var maxAge: TimeInterval {
+    @Published var maxAge: TimeInterval {
         didSet { UserDefaults.standard.set(maxAge, forKey: "cache_maxAge") }
     }
 
-    var maxSizeMB: Int {
+    @Published var maxSizeMB: Int {
         didSet { UserDefaults.standard.set(maxSizeMB, forKey: "cache_maxSizeMB") }
     }
 
     // MARK: - In-Memory Cache (excluded from observation tracking)
 
-    @ObservationIgnored
     private var memory: [String: MemoryEntry] = [:]
 
     private struct MemoryEntry {
@@ -36,7 +34,6 @@ class CacheService {
 
     // MARK: - Encoder / Decoder (handle NaN / Infinity from API)
 
-    @ObservationIgnored
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.nonConformingFloatEncodingStrategy = .convertToString(
@@ -45,7 +42,6 @@ class CacheService {
         return e
     }()
 
-    @ObservationIgnored
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.nonConformingFloatDecodingStrategy = .convertFromString(

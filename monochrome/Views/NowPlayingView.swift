@@ -2,11 +2,11 @@ import SwiftUI
 
 struct NowPlayingView: View {
     @Binding var expansion: CGFloat
-    @Binding var navigationPath: NavigationPath
+    @Binding var navigationPath: CompatNavigationPath
 
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(DownloadManager.self) private var downloadManager
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var downloadManager: DownloadManager
     @State private var showQueue = false
 
     // Real screen dimensions — always correct regardless of view hierarchy
@@ -107,7 +107,7 @@ struct NowPlayingView: View {
         .clipped()
         .sheet(isPresented: $showQueue) {
             QueueSheetView()
-                .environment(audioPlayer)
+                .environmentObject(audioPlayer)
         }
     }
 

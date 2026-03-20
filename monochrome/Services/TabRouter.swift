@@ -1,7 +1,8 @@
-import Observation
+import Foundation
+import Combine
+import SwiftUI
 
-@Observable
-class TabRouter {
-    var selectedTab: Int = 0
-    var pendingLibraryFilter: LibraryFilter? = nil
+class TabRouter: ObservableObject {
+    @Published var selectedTab: Int = 0
+    @Published var pendingLibraryFilter: LibraryFilter? = nil
 }

@@ -117,7 +117,7 @@ class PocketBaseService {
         print("[Sync] syncLibraryItem: \(added ? "ADD" : "REMOVE") \(type) key=\(key ?? "nil"), items before: \(items.keys.sorted())")
 
         if added {
-            if let track = track { items[String(track.id)] = minifyTrack(track) }
+            if let track = track { items[String(track.id)] = Self.minifyTrack(track) }
             else if let album = album { items[String(album.id)] = minifyAlbum(album) }
             else if let artist = artist { items[String(artist.id)] = minifyArtist(artist) }
             else if let playlist = playlist { items[playlist.uuid] = minifyPlaylist(playlist) }
@@ -252,7 +252,7 @@ class PocketBaseService {
         return try? JSONSerialization.jsonObject(with: data) as? [Any]
     }
 
-    private func minifyTrack(_ track: Track) -> [String: Any] {
+    nonisolated private static func minifyTrack(_ track: Track) -> [String: Any] {
         var data: [String: Any] = [
             "id": track.id,
             "title": track.title,
@@ -329,14 +329,14 @@ class PocketBaseService {
         return data
     }
 
-    func minifyTrackForPlaylist(_ track: Track) -> [String: Any] {
-        var data = minifyTrack(track)
+    nonisolated static func minifyTrackForPlaylist(_ track: Track) -> [String: Any] {
+        var data = Self.minifyTrack(track)
         data["addedAt"] = Int(Date().timeIntervalSince1970 * 1000)
         return data
     }
 
     private func minifyHistoryEntry(_ track: Track) -> [String: Any] {
-        var data = minifyTrack(track)
+        var data = Self.minifyTrack(track)
         data["timestamp"] = Int(Date().timeIntervalSince1970 * 1000)
         return data
     }
@@ -382,7 +382,7 @@ extension Array where Element == [String: Any] {
 
     func decodePlaylists() -> [Playlist] {
         compactMap { raw in
-            var dict = raw
+            let dict = raw
             if dict["uuid"] == nil || dict["uuid"] is NSNull { return nil }
             guard let data = try? JSONSerialization.data(withJSONObject: dict),
                   let playlist = try? JSONDecoder().decode(Playlist.self, from: data) else { return nil }
@@ -392,7 +392,7 @@ extension Array where Element == [String: Any] {
 
     func decodeMixes() -> [Mix] {
         compactMap { raw in
-            var dict = raw
+            let dict = raw
             if dict["id"] == nil || dict["id"] is NSNull { return nil }
             guard let data = try? JSONSerialization.data(withJSONObject: dict),
                   let mix = try? JSONDecoder().decode(Mix.self, from: data) else { return nil }

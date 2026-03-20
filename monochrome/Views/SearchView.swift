@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct SearchView: View {
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
 
     @State private var searchText = ""
     @State private var searchTracks: [Track] = []
@@ -148,10 +148,13 @@ struct SearchView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 16) {
                                     ForEach(searchArtists) { artist in
-                                        NavigationLink(value: artist) {
+                                        Button {
+                                            isFocused = false
+                                            navigationPath.append(artist)
+                                        } label: {
                                             ArtistSearchResultRow(artist: artist)
                                         }
-                                        .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                        .buttonStyle(.plain)
                                     }
                                 }
                                 .padding(.horizontal, 16)
@@ -203,16 +206,22 @@ struct SearchView: View {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     LazyHStack(spacing: 16) {
                                         ForEach(searchAlbums) { album in
-                                            NavigationLink(value: album) {
+                                            Button {
+                                                isFocused = false
+                                                navigationPath.append(album)
+                                            } label: {
                                                 AlbumSearchResultRow(album: album)
                                             }
-                                            .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                            .buttonStyle(.plain)
                                         }
                                         ForEach(searchPlaylists) { playlist in
-                                            NavigationLink(value: playlist) {
+                                            Button {
+                                                isFocused = false
+                                                navigationPath.append(playlist)
+                                            } label: {
                                                 PlaylistSearchResultRow(playlist: playlist)
                                             }
-                                            .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                            .buttonStyle(.plain)
                                         }
                                     }
                                     .padding(.horizontal, 16)
@@ -224,10 +233,13 @@ struct SearchView: View {
                                     ScrollView(.horizontal, showsIndicators: false) {
                                         LazyHStack(spacing: 16) {
                                             ForEach(filteredAlbums) { album in
-                                                NavigationLink(value: album) {
+                                                Button {
+                                                    isFocused = false
+                                                    navigationPath.append(album)
+                                                } label: {
                                                     AlbumSearchResultRow(album: album)
                                                 }
-                                                .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                                .buttonStyle(.plain)
                                             }
                                         }
                                         .padding(.horizontal, 16)
@@ -240,10 +252,13 @@ struct SearchView: View {
                                     ScrollView(.horizontal, showsIndicators: false) {
                                         LazyHStack(spacing: 16) {
                                             ForEach(filteredPlaylists) { playlist in
-                                                NavigationLink(value: playlist) {
+                                                Button {
+                                                    isFocused = false
+                                                    navigationPath.append(playlist)
+                                                } label: {
                                                     PlaylistSearchResultRow(playlist: playlist)
                                                 }
-                                                .simultaneousGesture(TapGesture().onEnded { isFocused = false })
+                                                .buttonStyle(.plain)
                                             }
                                         }
                                         .padding(.horizontal, 16)
@@ -373,7 +388,7 @@ struct SearchView: View {
             }
             .listStyle(.plain)
             .environment(\.defaultMinListRowHeight, 0)
-            .safeAreaPadding(.top, 70) 
+            .compatSafeAreaPadding(.top, 70)
             
             VStack(spacing: 0) {
                 searchBar
@@ -387,7 +402,7 @@ struct SearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background)
         .offset(y: keyboardHeight)
-        .onChange(of: searchText) { _, newValue in
+        .onChange(of: searchText) { newValue in
             updateSuggestions(query: newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
@@ -404,7 +419,6 @@ struct SearchView: View {
         .ignoresSafeArea(.keyboard)
         .onAppear { loadHistory() }
         .onTapGesture { isFocused = false }
-        .onChange(of: navigationPath) { isFocused = false }
     }
 
     private var searchBar: some View {
@@ -649,7 +663,7 @@ struct SearchView: View {
         guard trimmed.count >= 2 else { return }
 
         autocompleteTask = Task {
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
 
             do {
@@ -775,7 +789,7 @@ struct PlaylistSearchResultRow: View {
 }
 
 #Preview {
-    SearchView(navigationPath: .constant(NavigationPath()))
-        .environment(AudioPlayerService())
-        .environment(LibraryManager.shared)
+    SearchView(navigationPath: .constant(CompatNavigationPath()))
+        .environmentObject(AudioPlayerService())
+        .environmentObject(LibraryManager.shared)
 }

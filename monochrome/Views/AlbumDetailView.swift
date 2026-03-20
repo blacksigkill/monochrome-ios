@@ -2,10 +2,10 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     let album: Album
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(DownloadManager.self) private var downloadManager
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var downloadManager: DownloadManager
 
     @State private var loadedAlbum: Album?
     @State private var tracks: [Track] = []
@@ -63,7 +63,7 @@ struct AlbumDetailView: View {
             .environment(\.defaultMinListRowHeight, 0)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .compatToolbarBackground(.hidden)
         .task { await loadAlbum() }
     }
 

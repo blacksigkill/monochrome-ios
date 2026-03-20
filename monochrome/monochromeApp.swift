@@ -3,31 +3,31 @@ import AVFoundation
 
 @main
 struct MonochromeIOSApp: App {
-    @State private var audioPlayerService = AudioPlayerService()
-    @State private var libraryManager = LibraryManager.shared
-    @State private var authService = AuthService.shared
-    @State private var playlistManager = PlaylistManager.shared
-    @State private var profileManager = ProfileManager.shared
-    @State private var downloadManager = DownloadManager.shared
-    @State private var tabRouter = TabRouter()
+    @StateObject private var audioPlayerService = AudioPlayerService()
+    @StateObject private var libraryManager = LibraryManager.shared
+    @StateObject private var authService = AuthService.shared
+    @StateObject private var playlistManager = PlaylistManager.shared
+    @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var downloadManager = DownloadManager.shared
+    @StateObject private var tabRouter = TabRouter()
     @State private var syncTimer: Timer?
 
     var body: some Scene {
         WindowGroup {
             MainTabView()
-                .environment(audioPlayerService)
-                .environment(libraryManager)
-                .environment(authService)
-                .environment(playlistManager)
-                .environment(profileManager)
-                .environment(downloadManager)
-                .environment(tabRouter)
+                .environmentObject(audioPlayerService)
+                .environmentObject(libraryManager)
+                .environmentObject(authService)
+                .environmentObject(playlistManager)
+                .environmentObject(profileManager)
+                .environmentObject(downloadManager)
+                .environmentObject(tabRouter)
                 .onAppear {
                     setupAudioSession()
                     triggerSyncIfNeeded()
                     startPeriodicSync()
                 }
-                .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                .onChange(of: authService.isAuthenticated) { isAuthenticated in
                     if isAuthenticated {
                         triggerSyncIfNeeded()
                     } else {

@@ -3,7 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     private var cache = CacheService.shared
-    private var settings = SettingsManager.shared
+    @StateObject private var settings = SettingsManager.shared
 
     @State private var cacheSize: String = ""
     @State private var cacheEntries: Int = 0
@@ -17,7 +17,7 @@ struct SettingsView: View {
     @State private var customNamingText = ""
 
     var body: some View {
-        NavigationStack {
+        CompatNavigationView {
             ScrollView {
                 VStack(spacing: 24) {
                     // MARK: - Playback
@@ -28,7 +28,7 @@ struct SettingsView: View {
 
                         Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
 
-                        SettingsToggleRow(icon: "waveform.badge.magnifyingglass", title: "Show Track Quality", isOn: Bindable(settings).showTrackQuality)
+                        SettingsToggleRow(icon: "waveform.badge.magnifyingglass", title: "Show Track Quality", isOn: $settings.showTrackQuality)
                     }
 
                     // MARK: - Downloads
@@ -81,10 +81,10 @@ struct SettingsView: View {
                 .padding(.top, 8)
             }
             .background(Theme.background)
-            .scrollContentBackground(.hidden)
+            .compatScrollContentBackground(false)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .compatToolbarColorScheme(.dark)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -205,6 +205,8 @@ private struct SettingsRow: View {
     let icon: String
     let title: String
     var value: String? = nil
+    var valueLineLimit: Int? = 1
+    var valueTruncationMode: Text.TruncationMode = .tail
     var isAction: Bool = false
     var showChevron: Bool = true
     var isDisabled: Bool = false
@@ -230,6 +232,8 @@ private struct SettingsRow: View {
                     Text(value)
                         .font(.system(size: 14))
                         .foregroundColor(isDisabled ? Theme.mutedForeground.opacity(0.7) : Theme.mutedForeground)
+                        .lineLimit(valueLineLimit)
+                        .truncationMode(valueTruncationMode)
                 }
 
                 if showChevron && !isAction && !isDisabled {
@@ -240,6 +244,8 @@ private struct SettingsRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -276,7 +282,7 @@ private struct SettingsToggleRow: View {
 }
 
 struct DownloadsSection: View {
-    @Bindable var settings: SettingsManager
+    @ObservedObject var settings: SettingsManager
     @Binding var showDownloadQualityPicker: Bool
     @Binding var showFileNamingPicker: Bool
     @Binding var showCustomNamingEditor: Bool
@@ -297,29 +303,16 @@ struct DownloadsSection: View {
 
             if settings.fileNaming == .custom {
                 Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
-                
-                Button(action: {
+
+                SettingsRow(
+                    icon: "textformat",
+                    title: "Pattern",
+                    value: settings.customNamingPattern,
+                    valueTruncationMode: .middle
+                ) {
                     customNamingText = settings.customNamingPattern
                     showCustomNamingEditor = true
-                }) {
-                    HStack {
-                        Text("Pattern")
-                            .font(.system(size: 15))
-                            .foregroundColor(Theme.foreground)
-                        Spacer()
-                        Text(settings.customNamingPattern)
-                            .font(.system(size: 13))
-                            .foregroundColor(Theme.mutedForeground)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12))
-                            .foregroundColor(Theme.mutedForeground)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
                 }
-                .buttonStyle(.plain)
             }
 
             Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
@@ -341,5 +334,5 @@ struct DownloadsSection: View {
 
 #Preview {
     SettingsView()
-        .presentationDetents([.medium, .large])
+        .compatPresentationDetents(medium: true, large: true)
 }

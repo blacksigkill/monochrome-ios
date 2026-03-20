@@ -7,7 +7,7 @@ struct LyricLine: Identifiable {
 }
 
 struct LyricsView: View {
-    @Environment(AudioPlayerService.self) private var audioPlayer
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
 
     @State private var syncedLines: [LyricLine] = []
     @State private var plainLyrics: String?

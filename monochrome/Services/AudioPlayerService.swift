@@ -1,7 +1,7 @@
 import Foundation
 import AVFoundation
 import MediaPlayer
-import Observation
+import Combine
 import UIKit
 import SwiftUI
 
@@ -11,29 +11,28 @@ enum RepeatMode: Int, Codable {
     case one = 2
 }
 
-@Observable
-class AudioPlayerService {
-    var player: AVQueuePlayer?
-    var isPlaying: Bool = false
-    var currentTrackTitle: String = "No Track"
-    var currentArtistName: String = "Unknown Artist"
-    var currentAlbumTitle: String = ""
-    var currentCoverUrl: URL? = nil
-    var currentTrack: Track? = nil
+class AudioPlayerService: ObservableObject {
+    @Published var player: AVQueuePlayer?
+    @Published var isPlaying: Bool = false
+    @Published var currentTrackTitle: String = "No Track"
+    @Published var currentArtistName: String = "Unknown Artist"
+    @Published var currentAlbumTitle: String = ""
+    @Published var currentCoverUrl: URL? = nil
+    @Published var currentTrack: Track? = nil
 
     // Playback state
-    var currentTime: TimeInterval = 0
-    var duration: TimeInterval = 0
+    @Published var currentTime: TimeInterval = 0
+    @Published var duration: TimeInterval = 0
     private var timeObserverToken: Any?
     private var nowPlayingArtwork: MPMediaItemArtwork?
 
     // Queue support
-    var queuedTracks: [Track] = []
-    var playHistory: [Track] = []
-    var isShuffled: Bool = false
+    @Published var queuedTracks: [Track] = []
+    @Published var playHistory: [Track] = []
+    @Published var isShuffled: Bool = false
     private var originalQueue: [Track] = []
-    var queueSessionHistoryStart: Int = 0
-    var repeatMode: RepeatMode = .off
+    @Published var queueSessionHistoryStart: Int = 0
+    @Published var repeatMode: RepeatMode = .off
 
     private var savedQueueForRepeatOne: [Track] = []
     private let restartThreshold: TimeInterval = 3

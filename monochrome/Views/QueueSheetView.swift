@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct QueueSheetView: View {
-    @Environment(AudioPlayerService.self) private var audioPlayer
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab = 1 // 0 = Previous, 1 = Queue
     @State private var editMode: EditMode = .inactive
 
     var body: some View {
-        NavigationStack {
+        CompatNavigationView {
             VStack(spacing: 0) {
                 // Tab bar
                 HStack(spacing: 0) {
@@ -27,13 +27,13 @@ struct QueueSheetView: View {
             .background(Theme.background)
             .navigationTitle("Queue")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Theme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatToolbarBackground(Theme.background)
+            .compatToolbarBackground(.visible)
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Theme.background)
-        .onChange(of: selectedTab) {
+        .compatPresentationDetents(medium: true, large: true)
+        .compatPresentationDragIndicator()
+        .compatPresentationBackground(Theme.background)
+        .onChange(of: selectedTab) { _ in
             if selectedTab != 1 && editMode == .active {
                 withAnimation { editMode = .inactive }
             }
@@ -83,7 +83,7 @@ struct QueueSheetView: View {
                     }
                 }
                 .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+                .compatScrollContentBackground(false)
             }
         }
     }
@@ -163,7 +163,7 @@ struct QueueSheetView: View {
             }
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .compatScrollContentBackground(false)
         .environment(\.editMode, $editMode)
     }
 

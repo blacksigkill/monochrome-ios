@@ -1,18 +1,16 @@
 import Foundation
-import Observation
+import Combine
 
-@Observable
-class DownloadManager {
+class DownloadManager: ObservableObject {
     static let shared = DownloadManager()
 
     // trackId -> download state
-    var activeDownloads: [Int: DownloadState] = [:]
+    @Published var activeDownloads: [Int: DownloadState] = [:]
 
     private let manifestKey = "monochrome_downloads_manifest"
     private var manifest: [Int: DownloadedTrack] = [:]
     private let downloadsDir: URL
 
-    @ObservationIgnored
     private var coverCache: [String: Data] = [:]
 
     struct DownloadedTrack: Codable {
@@ -130,7 +128,7 @@ class DownloadManager {
                     activeDownloads[trackId] = .completed
                     // Clear completed state after a moment
                     Task {
-                        try? await Task.sleep(for: .seconds(2))
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
                         if case .completed = self.activeDownloads[trackId] {
                             self.activeDownloads.removeValue(forKey: trackId)
                         }

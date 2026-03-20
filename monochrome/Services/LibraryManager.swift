@@ -1,15 +1,14 @@
 import Foundation
-import Observation
+import Combine
 
-@Observable
-class LibraryManager {
+class LibraryManager: ObservableObject {
     static let shared = LibraryManager()
 
-    var favoriteTracks: [Track] = []
-    var favoriteAlbums: [Album] = []
-    var favoriteArtists: [Artist] = []
-    var favoritePlaylists: [Playlist] = []
-    var favoriteMixes: [Mix] = []
+    @Published var favoriteTracks: [Track] = []
+    @Published var favoriteAlbums: [Album] = []
+    @Published var favoriteArtists: [Artist] = []
+    @Published var favoritePlaylists: [Playlist] = []
+    @Published var favoriteMixes: [Mix] = []
 
     private let tracksKey = "monochrome_favorite_tracks"
     private let albumsKey = "monochrome_favorite_albums"

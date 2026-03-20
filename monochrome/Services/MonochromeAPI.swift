@@ -1,7 +1,5 @@
 import Foundation
-import Observation
 
-@Observable
 class MonochromeAPI {
     var baseURL = "https://api.monochrome.tf"
     private var urlSession = URLSession.shared

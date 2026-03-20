@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    @Environment(AuthService.self) private var authService
+    @EnvironmentObject private var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     @State private var mode: AuthMode = .signIn
     @State private var email = ""
@@ -202,7 +202,7 @@ struct LoginView: View {
             }
         }
         .background(Theme.background)
-        .scrollDismissesKeyboard(.interactively)
+        .compatScrollDismissesKeyboard(.interactively)
     }
 
     // MARK: - Computed
@@ -325,5 +325,5 @@ private struct AuthTextField: View {
 
 #Preview {
     LoginView()
-        .environment(AuthService.shared)
+        .environmentObject(AuthService.shared)
 }

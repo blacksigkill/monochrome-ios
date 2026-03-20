@@ -1,12 +1,11 @@
 import Foundation
-import Observation
+import Combine
 
-@Observable
-class ProfileManager {
+class ProfileManager: ObservableObject {
     static let shared = ProfileManager()
 
-    var profile = UserProfile()
-    var isLoaded = false
+    @Published var profile = UserProfile()
+    @Published var isLoaded = false
 
     private let profileKey = "monochrome_user_profile"
 

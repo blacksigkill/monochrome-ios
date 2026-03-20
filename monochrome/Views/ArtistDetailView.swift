@@ -2,10 +2,10 @@ import SwiftUI
 
 struct ArtistDetailView: View {
     let artist: Artist
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(DownloadManager.self) private var downloadManager
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var downloadManager: DownloadManager
 
     @State private var artistDetail: ArtistDetail?
     @State private var bio: String?
@@ -37,7 +37,7 @@ struct ArtistDetailView: View {
             .ignoresSafeArea(edges: .top)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .compatToolbarBackground(.hidden)
         .task { await loadAllData() }
     }
 
@@ -395,7 +395,7 @@ struct ArtistDetailView: View {
 
     @ViewBuilder
     private func bioSheet(_ text: String) -> some View {
-        NavigationStack {
+        CompatNavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     CachedAsyncImage(url: MonochromeAPI().getImageUrl(id: artistDetail?.picture ?? artist.picture, size: 750)) { phase in
@@ -453,8 +453,8 @@ struct ArtistDetailView: View {
                 }
             }
         }
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Theme.background)
+        .compatPresentationDragIndicator()
+        .compatPresentationBackground(Theme.background)
     }
 
     // MARK: - Similar Artists
@@ -764,7 +764,7 @@ private struct BioTextView: View {
 
     private func parseBio(_ raw: String) -> [BioSegment] {
         // Clean HTML first
-        var text = raw
+        let text = raw
             .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&nbsp;", with: " ")

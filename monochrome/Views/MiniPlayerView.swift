@@ -2,8 +2,8 @@ import SwiftUI
 
 struct MiniPlayerView: View {
     @Binding var expansion: CGFloat
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
 
     @State private var swipeOffset: CGFloat = 0
     @State private var dragAxis: DragAxis = .undecided

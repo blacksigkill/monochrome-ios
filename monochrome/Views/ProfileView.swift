@@ -1,14 +1,16 @@
 import SwiftUI
-import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ProfileView: View {
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(AuthService.self) private var authService
-    @Environment(ProfileManager.self) private var profileManager
-    @Environment(PlaylistManager.self) private var playlistManager
-    @Environment(TabRouter.self) private var tabRouter
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var authService: AuthService
+    @EnvironmentObject private var profileManager: ProfileManager
+    @EnvironmentObject private var playlistManager: PlaylistManager
+    @EnvironmentObject private var tabRouter: TabRouter
     @State private var activeSheet: ProfileSheet?
 
     private enum ProfileSheet: Identifiable, Hashable {
@@ -295,25 +297,25 @@ struct ProfileView: View {
             switch sheet {
             case .settings:
                 SettingsView()
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Theme.background)
+                    .compatPresentationDetents(medium: true, large: true)
+                    .compatPresentationDragIndicator()
+                    .compatPresentationBackground(Theme.background)
             case .login:
                 LoginView()
-                    .environment(authService)
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Theme.background)
+                    .environmentObject(authService)
+                    .compatPresentationDragIndicator()
+                    .compatPresentationBackground(Theme.background)
             case .editProfile:
                 EditProfileView()
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Theme.background)
+                    .compatPresentationDetents(large: true)
+                    .compatPresentationDragIndicator()
+                    .compatPresentationBackground(Theme.background)
             case .listeningHistory:
                 ListeningHistoryView()
-                    .environment(audioPlayer)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Theme.background)
+                    .environmentObject(audioPlayer)
+                    .compatPresentationDetents(medium: true, large: true)
+                    .compatPresentationDragIndicator()
+                    .compatPresentationBackground(Theme.background)
             }
         }
     }
@@ -378,8 +380,8 @@ struct ProfileView: View {
 // MARK: - Edit Profile View
 
 struct EditProfileView: View {
-    @Environment(ProfileManager.self) private var profileManager
-    @Environment(AuthService.self) private var authService
+    @EnvironmentObject private var profileManager: ProfileManager
+    @EnvironmentObject private var authService: AuthService
     @Environment(\.dismiss) private var dismiss
 
     @State private var username = ""
@@ -396,8 +398,6 @@ struct EditProfileView: View {
     @State private var isSaving = false
 
     // Image picker
-    @State private var avatarPickerItem: PhotosPickerItem?
-    @State private var bannerPickerItem: PhotosPickerItem?
     @State private var isUploadingAvatar = false
     @State private var isUploadingBanner = false
     @State private var uploadError = ""
@@ -418,7 +418,7 @@ struct EditProfileView: View {
     @FocusState private var statusFocused: Bool
 
     var body: some View {
-        NavigationView {
+        CompatNavigationView {
             List {
                 Section("Display") {
                     ProfileTextField(label: "Username", text: $username, icon: "at")
@@ -429,8 +429,10 @@ struct EditProfileView: View {
                         label: "Avatar",
                         currentUrl: avatarUrl,
                         isUploading: isUploadingAvatar,
-                        pickerItem: $avatarPickerItem,
-                        urlBinding: $avatarUrl
+                        urlBinding: $avatarUrl,
+                        onImagePicked: { image in
+                            uploadImage(image, for: .avatar)
+                        }
                     )
 
                     // Banner
@@ -438,8 +440,10 @@ struct EditProfileView: View {
                         label: "Banner",
                         currentUrl: banner,
                         isUploading: isUploadingBanner,
-                        pickerItem: $bannerPickerItem,
-                        urlBinding: $banner
+                        urlBinding: $banner,
+                        onImagePicked: { image in
+                            uploadImage(image, for: .banner)
+                        }
                     )
 
                     if !uploadError.isEmpty {
@@ -461,7 +465,7 @@ struct EditProfileView: View {
                                 .font(.system(size: 15))
                                 .foregroundColor(Theme.foreground)
                                 .focused($statusFocused)
-                                .onChange(of: statusSearch) { _, newValue in
+                                .onChange(of: statusSearch) { newValue in
                                     if suppressStatusUpdate {
                                         suppressStatusUpdate = false
                                         return
@@ -528,7 +532,7 @@ struct EditProfileView: View {
                             .font(.system(size: 15))
                             .foregroundColor(Theme.foreground)
                             .frame(minHeight: 80)
-                            .scrollContentBackground(.hidden)
+                            .compatScrollContentBackground(false)
                     }
                     ProfileTextField(label: "Website", text: $website, icon: "link")
                 }
@@ -562,7 +566,7 @@ struct EditProfileView: View {
                                         .font(.system(size: 11))
                                         .foregroundColor(Theme.mutedForeground.opacity(0.7))
                                         .lineLimit(1)
-                                        .italic()
+                                        .compatItalic()
                                 }
                             }
 
@@ -599,7 +603,7 @@ struct EditProfileView: View {
                                 TextField("Search album to add...", text: $favAlbumSearch)
                                     .font(.system(size: 15))
                                     .foregroundColor(Theme.foreground)
-                                    .onChange(of: favAlbumSearch) { _, newValue in
+                                    .onChange(of: favAlbumSearch) { newValue in
                                         searchFavAlbums(query: newValue)
                                     }
                             }
@@ -655,7 +659,7 @@ struct EditProfileView: View {
                         .tint(Theme.primary)
                 }
             }
-            .scrollContentBackground(.hidden)
+            .compatScrollContentBackground(false)
             .background(Theme.background)
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -699,16 +703,6 @@ struct EditProfileView: View {
                     statusJson = ""
                 }
             }
-            .onChange(of: avatarPickerItem) { _, item in
-                guard let item else { return }
-                loadAndUpload(item: item, for: .avatar)
-                avatarPickerItem = nil
-            }
-            .onChange(of: bannerPickerItem) { _, item in
-                guard let item else { return }
-                loadAndUpload(item: item, for: .banner)
-                bannerPickerItem = nil
-            }
             .alert("Album Description", isPresented: Binding(
                 get: { editingFavDescription != nil },
                 set: { if !$0 { editingFavDescription = nil } }
@@ -742,7 +736,7 @@ struct EditProfileView: View {
         showStatusSuggestions = true
 
         statusTask = Task {
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
 
             do {
@@ -798,26 +792,6 @@ struct EditProfileView: View {
 
     private enum ImageTarget { case avatar, banner }
 
-    private func loadAndUpload(item: PhotosPickerItem, for target: ImageTarget) {
-        switch target {
-        case .avatar: isUploadingAvatar = true
-        case .banner: isUploadingBanner = true
-        }
-        Task {
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
-                await MainActor.run {
-                    switch target {
-                    case .avatar: isUploadingAvatar = false
-                    case .banner: isUploadingBanner = false
-                    }
-                }
-                return
-            }
-            uploadImage(image, for: target)
-        }
-    }
-
     private func uploadImage(_ image: UIImage, for target: ImageTarget) {
         switch target {
         case .avatar: isUploadingAvatar = true
@@ -871,7 +845,7 @@ struct EditProfileView: View {
             return
         }
         favSearchTask = Task {
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
             do {
                 let albums = try await MonochromeAPI().searchAlbums(query: trimmed)
@@ -952,8 +926,8 @@ private struct ImageUploadRow: View {
     let label: String
     let currentUrl: String
     let isUploading: Bool
-    @Binding var pickerItem: PhotosPickerItem?
     @Binding var urlBinding: String
+    let onImagePicked: (UIImage) -> Void
 
     @State private var showUrlInput = false
 
@@ -988,7 +962,7 @@ private struct ImageUploadRow: View {
             }
 
             HStack(spacing: 8) {
-                PhotosPicker(selection: $pickerItem, matching: .images) {
+                CompatPhotoPicker {
                     Label("Upload", systemImage: "arrow.up.circle")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Theme.foreground)
@@ -996,6 +970,8 @@ private struct ImageUploadRow: View {
                         .padding(.vertical, 6)
                         .background(Theme.secondary)
                         .clipShape(Capsule())
+                } onImagePicked: { image in
+                    onImagePicked(image)
                 }
                 .buttonStyle(.plain)
 
@@ -1145,6 +1121,8 @@ private struct ProfileLink: View {
             }
             .padding(.vertical, 14)
             .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
             .background(Theme.secondary.opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: Theme.radiusLg))
         }
@@ -1157,7 +1135,7 @@ private struct ProfileLink: View {
 // MARK: - Listening History View
 
 struct ListeningHistoryView: View {
-    @Environment(AudioPlayerService.self) private var audioPlayer
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
     @Environment(\.dismiss) private var dismiss
     
     private var reversedHistory: [Track] {
@@ -1165,7 +1143,7 @@ struct ListeningHistoryView: View {
     }
     
     var body: some View {
-        NavigationStack {
+        CompatNavigationView {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(reversedHistory.enumerated()), id: \.offset) { index, track in
@@ -1178,7 +1156,7 @@ struct ListeningHistoryView: View {
             .background(Theme.background)
             .navigationTitle("Listening History")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .compatToolbarColorScheme(.dark)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
@@ -1232,16 +1210,20 @@ private struct ProfileTrackRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 }
 
 #Preview {
-    ProfileView(navigationPath: .constant(NavigationPath()))
-        .environment(AudioPlayerService())
-        .environment(LibraryManager.shared)
-        .environment(AuthService.shared)
-        .environment(ProfileManager.shared)
-        .environment(PlaylistManager.shared)
+    ProfileView(navigationPath: .constant(CompatNavigationPath()))
+        .environmentObject(AudioPlayerService())
+        .environmentObject(LibraryManager.shared)
+        .environmentObject(AuthService.shared)
+        .environmentObject(ProfileManager.shared)
+        .environmentObject(PlaylistManager.shared)
+        .environmentObject(DownloadManager.shared)
+        .environmentObject(TabRouter())
 }

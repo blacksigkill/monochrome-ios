@@ -1,17 +1,18 @@
 import SwiftUI
-import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct UserPlaylistDetailView: View {
     let playlistId: String
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(PlaylistManager.self) private var playlistManager
-    @Environment(DownloadManager.self) private var downloadManager
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var playlistManager: PlaylistManager
+    @EnvironmentObject private var downloadManager: DownloadManager
 
     @State private var showRenameAlert = false
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
-    @State private var coverPickerItem: PhotosPickerItem?
     @State private var isUploadingCover = false
     @State private var coverUploadError = ""
     @State private var showCoverUrlInput = false
@@ -74,7 +75,7 @@ struct UserPlaylistDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .compatToolbarBackground(.hidden)
         .alert("Rename Playlist", isPresented: $showRenameAlert) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) {}
@@ -105,33 +106,6 @@ struct UserPlaylistDetailView: View {
         } message: {
             Text("Paste a direct image URL")
         }
-        .onChange(of: coverPickerItem) { _, item in
-            guard let item else { return }
-            coverPickerItem = nil
-            isUploadingCover = true
-            Task {
-                guard let data = try? await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data),
-                      let compressed = ImageUploadService.shared.compressImage(image) else {
-                    await MainActor.run { isUploadingCover = false }
-                    return
-                }
-                do {
-                    let url = try await ImageUploadService.shared.upload(imageData: compressed)
-                    await MainActor.run {
-                        coverUploadError = ""
-                        playlistManager.updatePlaylistCover(id: playlistId, cover: url)
-                        isUploadingCover = false
-                    }
-                } catch {
-                    print("[Upload] Cover error: \(error.localizedDescription)")
-                    await MainActor.run {
-                        coverUploadError = error.localizedDescription
-                        isUploadingCover = false
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Header
@@ -157,7 +131,7 @@ struct UserPlaylistDetailView: View {
 
             // Cover edit buttons
             HStack(spacing: 8) {
-                PhotosPicker(selection: $coverPickerItem, matching: .images) {
+                CompatPhotoPicker {
                     Label("Upload", systemImage: "arrow.up.circle")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Theme.foreground)
@@ -165,6 +139,8 @@ struct UserPlaylistDetailView: View {
                         .padding(.vertical, 5)
                         .background(Theme.secondary)
                         .clipShape(Capsule())
+                } onImagePicked: { image in
+                    uploadCoverImage(image)
                 }
                 .buttonStyle(.borderless)
 
@@ -337,6 +313,30 @@ struct UserPlaylistDetailView: View {
             .clipShape(Circle())
         }
         .buttonStyle(.borderless)
+    }
+
+    private func uploadCoverImage(_ image: UIImage) {
+        isUploadingCover = true
+        Task {
+            guard let compressed = ImageUploadService.shared.compressImage(image) else {
+                await MainActor.run { isUploadingCover = false }
+                return
+            }
+            do {
+                let url = try await ImageUploadService.shared.upload(imageData: compressed)
+                await MainActor.run {
+                    coverUploadError = ""
+                    playlistManager.updatePlaylistCover(id: playlistId, cover: url)
+                    isUploadingCover = false
+                }
+            } catch {
+                print("[Upload] Cover error: \(error.localizedDescription)")
+                await MainActor.run {
+                    coverUploadError = error.localizedDescription
+                    isUploadingCover = false
+                }
+            }
+        }
     }
 
     // MARK: - Cover

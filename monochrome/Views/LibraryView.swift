@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct LibraryView: View {
-    @Binding var navigationPath: NavigationPath
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(PlaylistManager.self) private var playlistManager
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var playlistManager: PlaylistManager
     @State private var selectedFilter: LibraryFilter = .all
     @State private var sortNewest = true
     @State private var showCreatePlaylist = false
     @State private var showCreateFolder = false
     @State private var newItemName = ""
-    @Environment(TabRouter.self) private var tabRouter
+    @EnvironmentObject private var tabRouter: TabRouter
 
     private var isEmpty: Bool {
         libraryManager.favoriteTracks.isEmpty &&
@@ -41,7 +41,7 @@ struct LibraryView: View {
     var body: some View {
         mainContent
             .onAppear { applyPendingFilter() }
-            .onChange(of: tabRouter.pendingLibraryFilter) { _, _ in
+            .onChange(of: tabRouter.pendingLibraryFilter) { _ in
                 applyPendingFilter()
             }
     }
@@ -383,7 +383,7 @@ struct LibraryView: View {
                     .listRowBackground(Color.clear)
             }
             .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .compatScrollContentBackground(false)
             .environment(\.defaultMinListRowHeight, 0)
         }
     }
@@ -915,7 +915,7 @@ private struct UserFolderCard: View {
 private struct FolderRow: View {
     let folder: UserFolder
     let playlistManager: PlaylistManager
-    @Binding var navigationPath: NavigationPath
+    @Binding var navigationPath: CompatNavigationPath
     @State private var isExpanded = false
     @State private var showRename = false
     @State private var showDelete = false
@@ -1054,8 +1054,10 @@ private var playlistCoverPlaceholder: some View {
 }
 
 #Preview {
-    LibraryView(navigationPath: .constant(NavigationPath()))
-        .environment(LibraryManager.shared)
-        .environment(AudioPlayerService())
-        .environment(PlaylistManager.shared)
+    LibraryView(navigationPath: .constant(CompatNavigationPath()))
+        .environmentObject(LibraryManager.shared)
+        .environmentObject(AudioPlayerService())
+        .environmentObject(PlaylistManager.shared)
+        .environmentObject(DownloadManager.shared)
+        .environmentObject(TabRouter())
 }

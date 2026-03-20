@@ -1,9 +1,9 @@
 import SwiftUI
 
 struct HomeView: View {
-    @Binding var navigationPath: NavigationPath
-    @Environment(AudioPlayerService.self) private var audioPlayer
-    @Environment(LibraryManager.self) private var libraryManager
+    @Binding var navigationPath: CompatNavigationPath
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
+    @EnvironmentObject private var libraryManager: LibraryManager
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -17,7 +17,7 @@ struct HomeView: View {
             homeContent
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .compatScrollContentBackground(false)
         .background(Theme.background)
         .environment(\.defaultMinListRowHeight, 0)
     }
@@ -178,9 +178,10 @@ struct RecentTrackCard: View {
 }
 
 #Preview {
-    NavigationStack {
-        HomeView(navigationPath: .constant(NavigationPath()))
+    CompatNavigationView {
+        HomeView(navigationPath: .constant(CompatNavigationPath()))
     }
-    .environment(AudioPlayerService())
-    .environment(LibraryManager.shared)
+    .environmentObject(AudioPlayerService())
+    .environmentObject(LibraryManager.shared)
+    .environmentObject(DownloadManager.shared)
 }

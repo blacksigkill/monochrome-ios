@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Combine
 
 enum AudioQuality: String, CaseIterable, Codable {
     case low = "LOW"
@@ -49,8 +49,7 @@ enum FileNaming: String, CaseIterable, Codable {
     }
 }
 
-@Observable
-class SettingsManager {
+class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
 
     private let streamQualityKey = "settings_stream_quality"
@@ -59,31 +58,31 @@ class SettingsManager {
     private let customNamingPatternKey = "settings_custom_naming_pattern"
     private let showTrackQualityKey = "settings_show_track_quality"
 
-    var streamQuality: AudioQuality {
+    @Published var streamQuality: AudioQuality {
         didSet {
             UserDefaults.standard.set(streamQuality.rawValue, forKey: streamQualityKey)
         }
     }
 
-    var downloadQuality: DownloadQuality {
+    @Published var downloadQuality: DownloadQuality {
         didSet {
             UserDefaults.standard.set(downloadQuality.rawValue, forKey: downloadQualityKey)
         }
     }
 
-    var fileNaming: FileNaming {
+    @Published var fileNaming: FileNaming {
         didSet {
             UserDefaults.standard.set(fileNaming.rawValue, forKey: fileNamingKey)
         }
     }
 
-    var customNamingPattern: String {
+    @Published var customNamingPattern: String {
         didSet {
             UserDefaults.standard.set(customNamingPattern, forKey: customNamingPatternKey)
         }
     }
 
-    var showTrackQuality: Bool {
+    @Published var showTrackQuality: Bool {
         didSet {
             UserDefaults.standard.set(showTrackQuality, forKey: showTrackQualityKey)
         }
@@ -124,7 +123,7 @@ class SettingsManager {
             pattern = customNamingPattern
         }
 
-        var result = pattern
+        let result = pattern
             .replacingOccurrences(of: "{artist}", with: artist)
             .replacingOccurrences(of: "{album}", with: album)
             .replacingOccurrences(of: "{title}", with: title)

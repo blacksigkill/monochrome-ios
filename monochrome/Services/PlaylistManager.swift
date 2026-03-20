@@ -1,12 +1,11 @@
 import Foundation
-import Observation
+import Combine
 
-@Observable
-class PlaylistManager {
+class PlaylistManager: ObservableObject {
     static let shared = PlaylistManager()
 
-    var userPlaylists: [UserPlaylist] = []
-    var userFolders: [UserFolder] = []
+    @Published var userPlaylists: [UserPlaylist] = []
+    @Published var userFolders: [UserFolder] = []
 
     private let playlistsKey = "monochrome_user_playlists"
     private let foldersKey = "monochrome_user_folders"
@@ -261,7 +260,7 @@ class PlaylistManager {
 
     // MARK: - Serialization Helpers
 
-    private static func playlistToDict(_ p: UserPlaylist) -> [String: Any] {
+    nonisolated private static func playlistToDict(_ p: UserPlaylist) -> [String: Any] {
         var dict: [String: Any] = [
             "id": p.id,
             "name": p.name,
@@ -273,11 +272,11 @@ class PlaylistManager {
             "images": p.images,
             "isPublic": p.isPublic
         ]
-        dict["tracks"] = p.tracks.map { PocketBaseService.shared.minifyTrackForPlaylist($0) }
+        dict["tracks"] = p.tracks.map { PocketBaseService.minifyTrackForPlaylist($0) }
         return dict
     }
 
-    private static func folderToDict(_ f: UserFolder) -> [String: Any] {
+    nonisolated private static func folderToDict(_ f: UserFolder) -> [String: Any] {
         return [
             "id": f.id,
             "name": f.name,
@@ -288,7 +287,7 @@ class PlaylistManager {
         ]
     }
 
-    private static func parseJSON(_ value: String?) -> [String: Any]? {
+    nonisolated private static func parseJSON(_ value: String?) -> [String: Any]? {
         guard let str = value, let data = str.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }

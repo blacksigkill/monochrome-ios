@@ -1,18 +1,18 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @Environment(TabRouter.self) private var tabRouter
-    @State private var homePath = NavigationPath()
-    @State private var searchPath = NavigationPath()
-    @State private var libraryPath = NavigationPath()
-    @State private var profilePath = NavigationPath()
+    @EnvironmentObject private var tabRouter: TabRouter
+    @State private var homePath = CompatNavigationPath()
+    @State private var searchPath = CompatNavigationPath()
+    @State private var libraryPath = CompatNavigationPath()
+    @State private var profilePath = CompatNavigationPath()
     @State private var playerExpansion: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
-    @Environment(AudioPlayerService.self) private var audioPlayer
+    @EnvironmentObject private var audioPlayer: AudioPlayerService
 
     private let fullScreenH = UIScreen.main.bounds.height
 
-    private var activeNavigationPath: Binding<NavigationPath> {
+    private var activeNavigationPath: Binding<CompatNavigationPath> {
         switch tabRouter.selectedTab {
         case 0: return $homePath
         case 1: return $searchPath
@@ -67,79 +67,27 @@ struct MainTabView: View {
     private var nativeTabView: some View {
         TabView(selection: selectedTabBinding) {
             Tab("Home", systemImage: "house.fill", value: 0) {
-                NavigationStack(path: $homePath) {
+                tabNavigationStack(path: $homePath) {
                     HomeView(navigationPath: $homePath)
-                        .navigationBarHidden(true)
-                        .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $homePath)
-                        }
-                        .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $homePath)
-                        }
-                        .navigationDestination(for: Playlist.self) { playlist in
-                            PlaylistDetailView(playlist: playlist, navigationPath: $homePath)
-                        }
-                        .navigationDestination(for: UserPlaylist.self) { playlist in
-                            UserPlaylistDetailView(playlistId: playlist.id, navigationPath: $homePath)
-                        }
                 }
             }
 
             Tab("Search", systemImage: "magnifyingglass", value: 1) {
-                NavigationStack(path: $searchPath) {
+                tabNavigationStack(path: $searchPath) {
                     SearchView(navigationPath: $searchPath)
-                        .navigationBarHidden(true)
-                        .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $searchPath)
-                        }
-                        .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $searchPath)
-                        }
-                        .navigationDestination(for: Playlist.self) { playlist in
-                            PlaylistDetailView(playlist: playlist, navigationPath: $searchPath)
-                        }
-                        .navigationDestination(for: UserPlaylist.self) { playlist in
-                            UserPlaylistDetailView(playlistId: playlist.id, navigationPath: $searchPath)
-                        }
                 }
                 .ignoresSafeArea(.keyboard)
             }
 
             Tab("Library", systemImage: "books.vertical.fill", value: 2) {
-                NavigationStack(path: $libraryPath) {
+                tabNavigationStack(path: $libraryPath) {
                     LibraryView(navigationPath: $libraryPath)
-                        .navigationBarHidden(true)
-                        .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $libraryPath)
-                        }
-                        .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $libraryPath)
-                        }
-                        .navigationDestination(for: Playlist.self) { playlist in
-                            PlaylistDetailView(playlist: playlist, navigationPath: $libraryPath)
-                        }
-                        .navigationDestination(for: UserPlaylist.self) { playlist in
-                            UserPlaylistDetailView(playlistId: playlist.id, navigationPath: $libraryPath)
-                        }
                 }
             }
 
             Tab("Profile", systemImage: "person.fill", value: 3) {
-                NavigationStack(path: $profilePath) {
+                tabNavigationStack(path: $profilePath) {
                     ProfileView(navigationPath: $profilePath)
-                        .navigationBarHidden(true)
-                        .navigationDestination(for: Artist.self) { artist in
-                            ArtistDetailView(artist: artist, navigationPath: $profilePath)
-                        }
-                        .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album, navigationPath: $profilePath)
-                        }
-                        .navigationDestination(for: Playlist.self) { playlist in
-                            PlaylistDetailView(playlist: playlist, navigationPath: $profilePath)
-                        }
-                        .navigationDestination(for: UserPlaylist.self) { playlist in
-                            UserPlaylistDetailView(playlistId: playlist.id, navigationPath: $profilePath)
-                        }
                 }
             }
         }
@@ -204,24 +152,52 @@ struct MainTabView: View {
         .ignoresSafeArea()
     }
 
-    private func legacyNavStack<Content: View>(path: Binding<NavigationPath>, @ViewBuilder content: () -> Content) -> some View {
-        NavigationStack(path: path) {
+    private func legacyNavStack<Content: View>(path: Binding<CompatNavigationPath>, @ViewBuilder content: () -> Content) -> some View {
+        tabNavigationStack(path: path) {
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Theme.background)
-                .navigationBarHidden(true)
-                .navigationDestination(for: Artist.self) { artist in
-                    ArtistDetailView(artist: artist, navigationPath: path)
-                }
-                .navigationDestination(for: Album.self) { album in
-                    AlbumDetailView(album: album, navigationPath: path)
-                }
-                .navigationDestination(for: Playlist.self) { playlist in
-                    PlaylistDetailView(playlist: playlist, navigationPath: path)
-                }
-                .navigationDestination(for: UserPlaylist.self) { playlist in
-                    UserPlaylistDetailView(playlistId: playlist.id, navigationPath: path)
-                }
+        }
+    }
+
+    private func tabNavigationStack<Content: View>(path: Binding<CompatNavigationPath>, @ViewBuilder content: () -> Content) -> some View {
+        CompatNavigationStack(path: path, legacyDestination: { destination in
+            legacyDestinationView(destination, path: path)
+        }) {
+            applyRootDestinations(content().navigationBarHidden(true), path: path)
+        }
+    }
+
+    private func applyRootDestinations<Content: View>(_ content: Content,
+                                                      path: Binding<CompatNavigationPath>) -> some View {
+        content
+            .compatNavigationDestination(for: Artist.self) { artist in
+                ArtistDetailView(artist: artist, navigationPath: path)
+            }
+            .compatNavigationDestination(for: Album.self) { album in
+                AlbumDetailView(album: album, navigationPath: path)
+            }
+            .compatNavigationDestination(for: Playlist.self) { playlist in
+                PlaylistDetailView(playlist: playlist, navigationPath: path)
+            }
+            .compatNavigationDestination(for: UserPlaylist.self) { playlist in
+                UserPlaylistDetailView(playlistId: playlist.id, navigationPath: path)
+            }
+    }
+
+    private func legacyDestinationView(_ destination: LegacyNavigationDestination,
+                                       path: Binding<CompatNavigationPath>) -> AnyView {
+        switch destination.base {
+        case let artist as Artist:
+            return AnyView(ArtistDetailView(artist: artist, navigationPath: path))
+        case let album as Album:
+            return AnyView(AlbumDetailView(album: album, navigationPath: path))
+        case let playlist as Playlist:
+            return AnyView(PlaylistDetailView(playlist: playlist, navigationPath: path))
+        case let userPlaylist as UserPlaylist:
+            return AnyView(UserPlaylistDetailView(playlistId: userPlaylist.id, navigationPath: path))
+        default:
+            return AnyView(EmptyView())
         }
     }
 
@@ -403,6 +379,11 @@ private struct GlobalSwipeUpHandler: UIViewRepresentable {
 
 #Preview {
     MainTabView()
-        .environment(AudioPlayerService())
-        .environment(LibraryManager.shared)
+        .environmentObject(AudioPlayerService())
+        .environmentObject(LibraryManager.shared)
+        .environmentObject(AuthService.shared)
+        .environmentObject(PlaylistManager.shared)
+        .environmentObject(ProfileManager.shared)
+        .environmentObject(DownloadManager.shared)
+        .environmentObject(TabRouter())
 }
