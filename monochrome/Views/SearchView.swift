@@ -319,12 +319,18 @@ struct SearchView: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(Theme.foreground)
                         Spacer()
-                        Button("Clear") {
+                        Button {
                             withAnimation { searchHistory = [] }
                             UserDefaults.standard.removeObject(forKey: historyKey)
+                        } label: {
+                            Text("Clear")
+                                .font(.system(size: 14))
+                                .foregroundColor(Theme.mutedForeground)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .contentShape(Rectangle())
                         }
-                        .font(.system(size: 14))
-                        .foregroundColor(Theme.mutedForeground)
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
@@ -359,8 +365,10 @@ struct SearchView: View {
                                     Image(systemName: "xmark")
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundColor(Theme.mutedForeground.opacity(0.5))
-                                        .frame(width: 28, height: 28)
+                                        .frame(width: 36, height: 36)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
@@ -418,7 +426,7 @@ struct SearchView: View {
         .ignoresSafeArea(.all, edges: .bottom)
         .ignoresSafeArea(.keyboard)
         .onAppear { loadHistory() }
-        .onTapGesture { isFocused = false }
+        .simultaneousGesture(TapGesture().onEnded { isFocused = false })
     }
 
     private var searchBar: some View {
