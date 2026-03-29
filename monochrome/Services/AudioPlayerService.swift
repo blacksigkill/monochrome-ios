@@ -214,9 +214,16 @@ class AudioPlayerService: ObservableObject {
     private func setupAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("Failed to set audio session category: \(error)")
+        }
+    }
+
+    private func activateAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Failed to activate audio session: \(error)")
         }
     }
 
@@ -377,6 +384,7 @@ class AudioPlayerService: ObservableObject {
                                                        object: playerItem)
 
                 await MainActor.run {
+                    self.activateAudioSession()
                     if self.player == nil {
                         self.player = AVQueuePlayer(playerItem: playerItem)
                     } else {
@@ -459,6 +467,7 @@ class AudioPlayerService: ObservableObject {
                                                    object: playerItem)
 
             await MainActor.run {
+                self.activateAudioSession()
                 self.player = AVQueuePlayer(playerItem: playerItem)
                 self.player?.play()
                 self.isPlaying = true

@@ -1,5 +1,4 @@
 import SwiftUI
-import AVFoundation
 
 @main
 struct MonochromeIOSApp: App {
@@ -24,7 +23,6 @@ struct MonochromeIOSApp: App {
                 .environmentObject(downloadManager)
                 .environmentObject(tabRouter)
                 .onAppear {
-                    setupAudioSession()
                     triggerSyncIfNeeded()
                     startPeriodicSync()
                 }
@@ -56,16 +54,4 @@ struct MonochromeIOSApp: App {
         }
     }
 
-    private func setupAudioSession() {
-#if os(iOS)
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
-            print("AVAudioSession configured for playback.")
-        } catch {
-            print("Failed to set up AVAudioSession: \(error.localizedDescription)")
-        }
-#endif
-    }
 }
