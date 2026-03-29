@@ -1,44 +1,86 @@
-name: iOS starter workflow
+name: Build IPA (Latest Xcode)
 
 on:
   push:
     branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
 
 jobs:
   build:
-    name: Build and Test default scheme using any available iPhone simulator
-    runs-on: macos-latest
+    name: Build unsigned IPA
+    runs-on: macos-26
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set Default Scheme
+
+      - name: Select latest Xcode (26.x)
         run: |
-          scheme_list=$(xcodebuild -list -json | tr -d "\n")
-          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-          echo $default | cat >default
-          echo Using default scheme: $default
-      - name: Build
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
+          set -e
+
+          echo "Available Xcode versions:"
+          ls /Applications | grep Xcode
+
+          # Force latest stable Xcode installed
+          if [ -d "/Applications/Xcode_26.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.2.app
+          else
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+
+          xcodebuild -version
+
+      - name: Build & Archive
         run: |
-          # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          if [ $scheme = default ]; then scheme=$(cat default); fi
-          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild build-for-testing -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
-      - name: Test
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
+          set -e
+
+          SCHEME="monochrome"
+          APP_NAME="monochrome"
+          BUILD_DIR="$GITHUB_WORKSPACE/build"
+          ARCHIVE_PATH="$BUILD_DIR/$APP_NAME.xcarchive"
+
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+
+          echo "Archiving with latest iOS SDK..."
+
+          xcodebuild archive \
+            -project "$APP_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            -quiet
+
+      - name: Create IPA
         run: |
-          # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          if [ $scheme = default ]; then scheme=$(cat default); fi
-          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild test-without-building -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
+          set -e
+
+          APP_NAME="monochrome"
+          BUILD_DIR="$GITHUB_WORKSPACE/build"
+          ARCHIVE_PATH="$BUILD_DIR/$APP_NAME.xcarchive"
+          IPA_PATH="$GITHUB_WORKSPACE/$APP_NAME.ipa"
+
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/$APP_NAME.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ App not found"
+            exit 1
+          fi
+
+          echo "Packaging IPA..."
+
+          mkdir Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r -q "$IPA_PATH" Payload
+          rm -rf Payload
+
+          echo "✅ IPA created: $IPA_PATH"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: monochrome.ipa
+          path: monochrome.ipa
