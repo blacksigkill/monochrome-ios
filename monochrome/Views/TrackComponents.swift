@@ -393,13 +393,13 @@ struct AddToPlaylistSheet: View {
                                 .padding(.vertical, 10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(alreadyAdded)
                         }
+                        .buttonStyle(.plain)
+                        .disabled(alreadyAdded)
                     }
                 }
             }
+        }
         }
         .alert("New Playlist", isPresented: $showCreateNew) {
             TextField("Playlist name", text: $newName)

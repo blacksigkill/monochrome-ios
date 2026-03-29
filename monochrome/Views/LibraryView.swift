@@ -7,10 +7,14 @@ struct LibraryView: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
     @State private var selectedFilter: LibraryFilter = .all
     @State private var sortNewest = true
-    @State private var showCreatePlaylist = false
-    @State private var showCreateFolder = false
+    @State private var showAlert = false
+    @State private var activeAlertType: LibraryAlertType = .playlist
     @State private var newItemName = ""
     @EnvironmentObject private var tabRouter: TabRouter
+
+    private enum LibraryAlertType {
+        case playlist, folder
+    }
 
     private var isEmpty: Bool {
         libraryManager.favoriteTracks.isEmpty &&
@@ -64,13 +68,15 @@ struct LibraryView: View {
                 Menu {
                     Button {
                         newItemName = ""
-                        showCreatePlaylist = true
+                        activeAlertType = .playlist
+                        showAlert = true
                     } label: {
                         Label("New Playlist", systemImage: "music.note.list")
                     }
                     Button {
                         newItemName = ""
-                        showCreateFolder = true
+                        activeAlertType = .folder
+                        showAlert = true
                     } label: {
                         Label("New Folder", systemImage: "folder.badge.plus")
                     }
@@ -99,23 +105,18 @@ struct LibraryView: View {
             }
         }
         .background(Theme.background)
-        .alert("New Playlist", isPresented: $showCreatePlaylist) {
-            TextField("Playlist name", text: $newItemName)
+        .alert(activeAlertType == .playlist ? "New Playlist" : "New Folder", isPresented: $showAlert) {
+            TextField(activeAlertType == .playlist ? "Playlist name" : "Folder name", text: $newItemName)
             Button("Cancel", role: .cancel) {}
             Button("Create") {
                 let name = newItemName.trimmingCharacters(in: .whitespaces)
                 guard !name.isEmpty else { return }
-                let p = playlistManager.createPlaylist(name: name)
-                navigationPath.append(p)
-            }
-        }
-        .alert("New Folder", isPresented: $showCreateFolder) {
-            TextField("Folder name", text: $newItemName)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") {
-                let name = newItemName.trimmingCharacters(in: .whitespaces)
-                guard !name.isEmpty else { return }
-                playlistManager.createFolder(name: name)
+                if activeAlertType == .playlist {
+                    let p = playlistManager.createPlaylist(name: name)
+                    navigationPath.append(p)
+                } else {
+                    playlistManager.createFolder(name: name)
+                }
             }
         }
     }

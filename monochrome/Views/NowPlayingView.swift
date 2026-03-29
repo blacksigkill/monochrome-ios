@@ -9,6 +9,8 @@ struct NowPlayingView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var downloadManager: DownloadManager
     @State private var showQueue = false
+    @State private var isDraggingSlider = false
+    @State private var localSeekValue: Double = 0
 
     // Real screen dimensions — always correct regardless of view hierarchy
     private let screenW = UIScreen.main.bounds.width
@@ -106,6 +108,14 @@ struct NowPlayingView: View {
         }
         .frame(width: screenW, height: screenH)
         .clipped()
+        .onReceive(playbackProgress.$currentTime) { time in
+            if !isDraggingSlider {
+                localSeekValue = time
+            }
+        }
+        .onAppear {
+            localSeekValue = playbackProgress.currentTime
+        }
         .sheet(isPresented: $showQueue) {
             QueueSheetView()
                 .environmentObject(audioPlayer)
@@ -277,18 +287,21 @@ struct NowPlayingView: View {
     private var progressBar: some View {
         VStack(spacing: 6) {
             Slider(
-                value: Binding(
-                    get: { playbackProgress.currentTime },
-                    set: { audioPlayer.seek(to: $0) }
-                ),
-                in: 0...(playbackProgress.duration > 0 ? playbackProgress.duration : 1)
+                value: $localSeekValue,
+                in: 0...(playbackProgress.duration > 0 ? playbackProgress.duration : 1),
+                onEditingChanged: { editing in
+                    isDraggingSlider = editing
+                    if !editing {
+                        audioPlayer.seek(to: localSeekValue)
+                    }
+                }
             )
             .tint(.white)
 
             HStack {
-                Text(formatTime(playbackProgress.currentTime))
+                Text(formatTime(isDraggingSlider ? localSeekValue : playbackProgress.currentTime))
                 Spacer()
-                Text("-" + formatTime(max(0, playbackProgress.duration - playbackProgress.currentTime)))
+                Text("-" + formatTime(max(0, playbackProgress.duration - (isDraggingSlider ? localSeekValue : playbackProgress.currentTime))))
             }
             .font(.system(size: 11, weight: .medium, design: .monospaced))
             .foregroundColor(.white.opacity(0.5))
