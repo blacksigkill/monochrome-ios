@@ -1,7 +1,6 @@
 import Foundation
 
 class MonochromeAPI {
-    var baseURL = "https://api.monochrome.tf"
     private var urlSession = URLSession.shared
 
     private func request(for url: URL) -> URLRequest {
@@ -10,45 +9,63 @@ class MonochromeAPI {
         return req
     }
 
+    /// Fetch data from the best available API instance, rotating on failure.
+    private func fetchData(path: String) async throws -> Data {
+        let instances = InstanceManager.shared.getInstances(type: "api")
+        guard !instances.isEmpty else {
+            guard let url = URL(string: "https://api.monochrome.tf\(path)") else { throw URLError(.badURL) }
+            let (data, resp) = try await urlSession.data(for: request(for: url))
+            guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+            return data
+        }
+
+        var lastError: Error = URLError(.badServerResponse)
+        let start = Int.random(in: 0..<instances.count)
+
+        for i in 0..<instances.count {
+            let base = instances[(start + i) % instances.count].url
+            guard let url = URL(string: "\(base)\(path)") else { continue }
+            do {
+                let (data, resp) = try await urlSession.data(for: request(for: url))
+                if let http = resp as? HTTPURLResponse, http.statusCode == 200 {
+                    return data
+                }
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
+    }
+
     // MARK: - Search
 
     func searchTracks(query: String) async throws -> [Track] {
-        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(baseURL)/search/?s=\(q)") else { throw URLError(.badURL) }
-
-        let (data, response) = try await urlSession.data(for: request(for: url))
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { throw URLError(.badURL) }
+        let data = try await fetchData(path: "/search/?s=\(q)")
         return try JSONDecoder().decode(SearchResponse.self, from: data).data?.items ?? []
     }
 
     func searchAll(query: String) async throws -> (artists: [Artist], albums: [Album], tracks: [Track], playlists: [Playlist]) {
-        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let tracksUrl = URL(string: "\(baseURL)/search/?s=\(q)"),
-              let artistsUrl = URL(string: "\(baseURL)/search/?a=\(q)"),
-              let albumsUrl = URL(string: "\(baseURL)/search/?al=\(q)"),
-              let playlistsUrl = URL(string: "\(baseURL)/search/?p=\(q)") else { throw URLError(.badURL) }
+        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { throw URLError(.badURL) }
 
-        async let tracksTask = urlSession.data(for: request(for: tracksUrl))
-        async let artistsTask = urlSession.data(for: request(for: artistsUrl))
-        async let albumsTask = urlSession.data(for: request(for: albumsUrl))
-        async let playlistsTask = urlSession.data(for: request(for: playlistsUrl))
+        async let tracksTask = fetchData(path: "/search/?s=\(q)")
+        async let artistsTask = fetchData(path: "/search/?a=\(q)")
+        async let albumsTask = fetchData(path: "/search/?al=\(q)")
+        async let playlistsTask = fetchData(path: "/search/?p=\(q)")
 
-        let (tData, tResp) = try await tracksTask
         var tracks: [Track] = []
-        if (tResp as? HTTPURLResponse)?.statusCode == 200 {
+        if let tData = try? await tracksTask {
             tracks = (try? JSONDecoder().decode(SearchResponse.self, from: tData).data?.items) ?? []
         }
 
-        let (aData, aResp) = try await artistsTask
         var artists: [Artist] = []
-        if (aResp as? HTTPURLResponse)?.statusCode == 200,
+        if let aData = try? await artistsTask,
            let json = try? JSONSerialization.jsonObject(with: aData) as? [String: Any],
            let data = json["data"] as? [String: Any],
            let artistsDict = data["artists"] as? [String: Any],
            let items = artistsDict["items"] as? [[String: Any]],
            let arrData = try? JSONSerialization.data(withJSONObject: items),
            let decoded = try? JSONDecoder().decode([Artist].self, from: arrData) {
-            // Filter out entries with no picture, then deduplicate by name (keep highest popularity)
             let filtered = decoded.filter { $0.picture != nil }
             var bestByName: [String: Artist] = [:]
             for a in filtered {
@@ -62,22 +79,19 @@ class MonochromeAPI {
             artists = filtered.filter { bestByName[$0.name.lowercased()]?.id == $0.id }
         }
 
-        let (alData, alResp) = try await albumsTask
         var albums: [Album] = []
-        if (alResp as? HTTPURLResponse)?.statusCode == 200,
+        if let alData = try? await albumsTask,
            let json = try? JSONSerialization.jsonObject(with: alData) as? [String: Any],
            let data = json["data"] as? [String: Any],
            let albumsDict = data["albums"] as? [String: Any],
            let items = albumsDict["items"] as? [[String: Any]],
            let arrData = try? JSONSerialization.data(withJSONObject: items),
            let decoded = try? JSONDecoder().decode([Album].self, from: arrData) {
-            // Filter out albums with no cover art
             albums = decoded.filter { $0.cover != nil }
         }
 
-        let (pData, pResp) = try await playlistsTask
         var playlists: [Playlist] = []
-        if (pResp as? HTTPURLResponse)?.statusCode == 200 {
+        if let pData = try? await playlistsTask {
             playlists = Self.parsePlaylistSearchResults(data: pData)
         }
 
@@ -85,11 +99,8 @@ class MonochromeAPI {
     }
 
     func searchAlbums(query: String) async throws -> [Album] {
-        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(baseURL)/search/?al=\(q)") else { throw URLError(.badURL) }
-
-        let (data, response) = try await urlSession.data(for: request(for: url))
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        guard let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { throw URLError(.badURL) }
+        let data = try await fetchData(path: "/search/?al=\(q)")
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dataObj = json["data"] as? [String: Any],
@@ -103,7 +114,6 @@ class MonochromeAPI {
     private static func parsePlaylistSearchResults(data: Data) -> [Playlist] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
 
-        // Navigate to data.playlists.items
         let items: [[String: Any]]
         if let directItems = json["items"] as? [[String: Any]] {
             items = directItems
@@ -143,24 +153,15 @@ class MonochromeAPI {
     }
 
     // MARK: - Artist (two parallel calls, same as web app)
-    // Call 1: /artist/?id={id}  -> { artist: { id, name, picture, popularity, ... }, cover: {...} }
-    // Call 2: /artist/?f={id}   -> { albums: { items: [...] }, tracks: [...] }
 
     func fetchArtist(id: Int) async throws -> ArtistDetail {
         let cacheKey = "artist_\(id)"
 
-        guard let metaUrl = URL(string: "\(baseURL)/artist/?id=\(id)"),
-              let contentUrl = URL(string: "\(baseURL)/artist/?f=\(id)") else {
-            throw URLError(.badURL)
-        }
-
-        async let metaTask = urlSession.data(for: request(for: metaUrl))
-        async let contentTask = urlSession.data(for: request(for: contentUrl))
+        async let metaTask = fetchData(path: "/artist/?id=\(id)")
+        async let contentTask: Data? = try? fetchData(path: "/artist/?f=\(id)")
 
         // Parse artist metadata
-        let (metaData, metaResp) = try await metaTask
-        guard (metaResp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-
+        let metaData = try await metaTask
         let metaJson = try JSONSerialization.jsonObject(with: metaData) as? [String: Any]
         let artistObj = metaJson?["artist"] as? [String: Any] ?? [:]
 
@@ -173,19 +174,14 @@ class MonochromeAPI {
         var albums: [Album] = []
         var eps: [Album] = []
 
-        if let (contentData, contentResp) = try? await contentTask,
-           (contentResp as? HTTPURLResponse)?.statusCode == 200 {
-
+        if let contentData = await contentTask {
             let contentJson = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any]
 
-            // Tracks: top-level "tracks" array
             if let tracksArray = contentJson?["tracks"] as? [[String: Any]] {
-                // Inject/fix artist info into each track
                 var artistDict: [String: Any] = ["id": id, "name": name]
                 if let pic = picture { artistDict["picture"] = pic }
                 let enriched = tracksArray.map { track -> [String: Any] in
                     var t = track
-                    // Always ensure a proper "artist" dict is set with correct picture
                     if (t["artist"] as? [String: Any]) == nil {
                         t["artist"] = artistDict
                     }
@@ -203,7 +199,6 @@ class MonochromeAPI {
                 }
             }
 
-            // Albums: "albums" -> "items"
             if let albumsObj = contentJson?["albums"] as? [String: Any],
                let albumItems = albumsObj["items"] as? [[String: Any]] {
                 do {
@@ -226,20 +221,20 @@ class MonochromeAPI {
 
         if topTracks.isEmpty && albums.isEmpty && eps.isEmpty {
             let token = "txNoH4kkV41MfH25"
-            
+
             // Fallback 1: Top Tracks (Direct Tidal)
             if let tUrl = URL(string: "https://api.tidal.com/v1/artists/\(id)/toptracks?countryCode=FR") {
                 var req = URLRequest(url: tUrl)
                 req.setValue(token, forHTTPHeaderField: "X-Tidal-Token")
-                
+
                 if let (data, resp) = try? await urlSession.data(for: req),
                    (resp as? HTTPURLResponse)?.statusCode == 200,
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let items = json["items"] as? [[String: Any]] {
-                    
+
                     var artistDict: [String: Any] = ["id": id, "name": name]
                     if let pic = picture { artistDict["picture"] = pic }
-                    
+
                     let enriched = items.map { track -> [String: Any] in
                         var t = track
                         if (t["artist"] as? [String: Any]) == nil { t["artist"] = artistDict }
@@ -251,17 +246,17 @@ class MonochromeAPI {
                     }
                 }
             }
-            
+
             // Fallback 2: Albums (Direct Tidal)
             if let aUrl = URL(string: "https://api.tidal.com/v1/artists/\(id)/albums?countryCode=FR") {
                 var req = URLRequest(url: aUrl)
                 req.setValue(token, forHTTPHeaderField: "X-Tidal-Token")
-                
+
                 if let (data, resp) = try? await urlSession.data(for: req),
                    (resp as? HTTPURLResponse)?.statusCode == 200,
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let items = json["items"] as? [[String: Any]] {
-                    
+
                     if let albumsData = try? JSONSerialization.data(withJSONObject: items),
                        let decoded = try? JSONDecoder().decode([Album].self, from: albumsData) {
                         let sorted = decoded.sorted { ($0.releaseDate ?? "") > ($1.releaseDate ?? "") }
@@ -274,25 +269,21 @@ class MonochromeAPI {
                 }
             }
 
-            // Fallback 3: Search (Monochrome search if still empty - good for contributor/variation artists)
+            // Fallback 3: Search (Monochrome search if still empty)
             if topTracks.isEmpty && albums.isEmpty && eps.isEmpty {
                 let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                if let sUrl = URL(string: "\(baseURL)/search/?s=\(encodedName)") {
-                    if let (data, resp) = try? await urlSession.data(for: request(for: sUrl)),
-                       (resp as? HTTPURLResponse)?.statusCode == 200,
-                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let items = (json["data"] as? [String: Any])?["items"] as? [[String: Any]] {
-                        
-                        // Extract tracks where the artist name matches closely
-                        let filtered = items.filter { item in
-                            guard let tracksArtist = (item["artist"] as? [String: Any])?["name"] as? String else { return false }
-                            return tracksArtist.localizedCaseInsensitiveContains(name)
-                        }
+                if let searchData = try? await fetchData(path: "/search/?s=\(encodedName)"),
+                   let json = try? JSONSerialization.jsonObject(with: searchData) as? [String: Any],
+                   let items = (json["data"] as? [String: Any])?["items"] as? [[String: Any]] {
 
-                        if let tracksData = try? JSONSerialization.data(withJSONObject: filtered),
-                           let decoded = try? JSONDecoder().decode([Track].self, from: tracksData) {
-                            topTracks = Array(decoded.prefix(15))
-                        }
+                    let filtered = items.filter { item in
+                        guard let tracksArtist = (item["artist"] as? [String: Any])?["name"] as? String else { return false }
+                        return tracksArtist.localizedCaseInsensitiveContains(name)
+                    }
+
+                    if let tracksData = try? JSONSerialization.data(withJSONObject: filtered),
+                       let decoded = try? JSONDecoder().decode([Track].self, from: tracksData) {
+                        topTracks = Array(decoded.prefix(15))
                     }
                 }
             }
@@ -326,16 +317,12 @@ class MonochromeAPI {
         return bio
     }
 
-    // MARK: - Similar Artists (response: { artists: [...] })
+    // MARK: - Similar Artists
 
     func fetchSimilarArtists(id: Int) async -> [Artist] {
         let cacheKey = "similar_\(id)"
 
-        guard let url = URL(string: "\(baseURL)/artist/similar/?id=\(id)") else { return [] }
-
-        guard let (data, response) = try? await urlSession.data(for: request(for: url)),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
-
+        guard let data = try? await fetchData(path: "/artist/similar/?id=\(id)") else { return [] }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
 
         let artistsRaw = json["artists"] as? [[String: Any]]
@@ -355,15 +342,10 @@ class MonochromeAPI {
     func fetchAlbum(id: Int) async throws -> AlbumDetail {
         let cacheKey = "album_\(id)"
 
-        guard let firstUrl = URL(string: "\(baseURL)/album/?id=\(id)") else { throw URLError(.badURL) }
-
-        let (data, response) = try await urlSession.data(for: request(for: firstUrl))
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-
+        let data = try await fetchData(path: "/album/?id=\(id)")
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let root = json?["data"] as? [String: Any] ?? json ?? [:]
 
-        // Parse album metadata
         var album: Album?
         if root["numberOfTracks"] != nil || root["title"] != nil,
            let albumData = try? JSONSerialization.data(withJSONObject: root),
@@ -371,7 +353,6 @@ class MonochromeAPI {
             album = decoded
         }
 
-        // Parse tracks from "items"
         var tracks: [Track] = []
         if let items = root["items"] as? [[String: Any]] {
             for item in items {
@@ -382,7 +363,6 @@ class MonochromeAPI {
                 }
             }
 
-            // If no album metadata, extract from first track
             if album == nil, let firstTrack = tracks.first?.album {
                 album = firstTrack
             }
@@ -393,10 +373,7 @@ class MonochromeAPI {
         if tracks.count < totalTracks {
             var offset = tracks.count
             while offset < totalTracks {
-                guard let pageUrl = URL(string: "\(baseURL)/album/?id=\(id)&offset=\(offset)") else { break }
-                guard let (pageData, pageResp) = try? await urlSession.data(for: request(for: pageUrl)),
-                      (pageResp as? HTTPURLResponse)?.statusCode == 200 else { break }
-
+                guard let pageData = try? await fetchData(path: "/album/?id=\(id)&offset=\(offset)") else { break }
                 guard let pageJson = try? JSONSerialization.jsonObject(with: pageData) as? [String: Any],
                       let pageRoot = pageJson["data"] as? [String: Any],
                       let pageItems = pageRoot["items"] as? [[String: Any]], !pageItems.isEmpty else { break }
@@ -423,21 +400,15 @@ class MonochromeAPI {
     func fetchPlaylist(uuid: String) async throws -> PlaylistDetail {
         let cacheKey = "playlist_\(uuid)"
 
-        guard let url = URL(string: "\(baseURL)/playlist/?id=\(uuid)") else { throw URLError(.badURL) }
-
-        let (data, response) = try await urlSession.data(for: request(for: url))
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-
+        let data = try await fetchData(path: "/playlist/?id=\(uuid)")
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let root = json?["data"] as? [String: Any] ?? json ?? [:]
 
-        // Parse playlist metadata
         let title = root["title"] as? String ?? "Playlist"
         let image = root["squareImage"] as? String ?? root["image"] as? String
         let description = root["description"] as? String
         let numberOfTracks = root["numberOfTracks"] as? Int
 
-        // Parse tracks from "items"
         var tracks: [Track] = []
         if let items = root["items"] as? [[String: Any]] {
             for item in items {
@@ -493,10 +464,7 @@ class MonochromeAPI {
     }
 
     func fetchStreamUrl(trackId: Int, quality: AudioQuality = .high) async throws -> String? {
-        guard let url = URL(string: "\(baseURL)/track/?id=\(trackId)&quality=\(quality.rawValue)") else { throw URLError(.badURL) }
-
-        let (data, response) = try await urlSession.data(for: request(for: url))
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        let data = try await fetchData(path: "/track/?id=\(trackId)&quality=\(quality.rawValue)")
 
         let apiResponse = try JSONDecoder().decode(TrackResponse.self, from: data)
         guard let manifestBase64 = apiResponse.data?.manifest,
@@ -508,10 +476,8 @@ class MonochromeAPI {
     }
 
     func fetchStreamUrlWithFallback(trackId: Int, preferredQuality: AudioQuality) async -> String? {
-        // Fallback: try preferred quality, then only LOWER qualities (never go up)
         let allDescending: [AudioQuality] = [.hiResLossless, .lossless, .high, .medium, .low]
         let preferredIndex = allDescending.firstIndex(of: preferredQuality) ?? 0
-        // Drop everything above preferred, then skip preferred itself from the tail
         let lowerQualities = allDescending.dropFirst(preferredIndex + 1)
         let fallbackOrder = [preferredQuality] + lowerQualities
 
@@ -545,7 +511,7 @@ class MonochromeAPI {
     }
 }
 
-// MARK: - Artist Detail Model
+// MARK: - Detail Models
 
 struct AlbumDetail: Codable {
     let album: Album

@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     private var cache = CacheService.shared
     @StateObject private var settings = SettingsManager.shared
+    @StateObject private var instanceManager = InstanceManager.shared
 
     @State private var cacheSize: String = ""
     @State private var cacheEntries: Int = 0
@@ -61,6 +62,9 @@ struct SettingsView: View {
                             showClearConfirm = true
                         }
                     }
+
+                    // MARK: - Instances
+                    InstancesSection(instanceManager: instanceManager)
 
                     // MARK: - Appearance
                     SettingsSection(title: "Appearance") {
@@ -328,6 +332,142 @@ struct DownloadsSection: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will delete all downloaded tracks from storage.")
+        }
+    }
+}
+
+// MARK: - Instances Section
+
+struct InstancesSection: View {
+    @ObservedObject var instanceManager: InstanceManager
+    @State private var showAddInstance = false
+    @State private var newInstanceURL = ""
+    @State private var refreshDone = false
+
+    var body: some View {
+        SettingsSection(title: "Instances") {
+            // Refresh button
+            Button {
+                Task {
+                    await instanceManager.refreshInstances()
+                    refreshDone = true
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    refreshDone = false
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 15))
+                        .foregroundColor(Theme.foreground)
+                        .frame(width: 22)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Refresh Instance List")
+                            .font(.system(size: 15))
+                            .foregroundColor(Theme.foreground)
+                        Text("Manage and prioritize API instances.")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.mutedForeground)
+                    }
+
+                    Spacer()
+
+                    if instanceManager.isRefreshing {
+                        ProgressView()
+                            .tint(Theme.mutedForeground)
+                    } else if refreshDone {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.green)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(instanceManager.isRefreshing)
+
+            // Instance list
+            let instances = instanceManager.getInstances()
+            if !instances.isEmpty {
+                ForEach(instances) { instance in
+                    Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
+
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(instance.isUser ? Color.blue : Color.green)
+                            .frame(width: 6, height: 6)
+
+                        Text(instance.label)
+                            .font(.system(size: 13))
+                            .foregroundColor(Theme.foreground)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text(instance.version)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(Theme.mutedForeground)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.background.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                        if instance.isUser {
+                            Button {
+                                instanceManager.removeUserInstance(type: "api", url: instance.url)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 16))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+            }
+
+            Divider().foregroundColor(Theme.border).padding(.horizontal, 16)
+
+            // Add custom instance
+            Button {
+                showAddInstance = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundColor(Theme.highlight)
+                        .frame(width: 22)
+
+                    Text("Add Custom Instance")
+                        .font(.system(size: 15))
+                        .foregroundColor(Theme.highlight)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .alert("Add Custom Instance", isPresented: $showAddInstance) {
+            TextField("https://example.com", text: $newInstanceURL)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+            Button("Cancel", role: .cancel) { newInstanceURL = "" }
+            Button("Add") {
+                let url = newInstanceURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !url.isEmpty {
+                    instanceManager.addUserInstance(type: "api", url: url)
+                }
+                newInstanceURL = ""
+            }
+        } message: {
+            Text("Enter the full URL of the API instance.")
         }
     }
 }
