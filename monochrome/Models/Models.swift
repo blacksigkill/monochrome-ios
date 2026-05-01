@@ -4,6 +4,7 @@ struct Track: Identifiable, Codable, Hashable {
     let id: Int
     let title: String
     let duration: Int
+    let isrc: String?
     let artist: Artist?
     let album: Album?
     let streamStartDate: String?
@@ -28,7 +29,7 @@ struct MediaMetadata: Codable, Hashable {
 
 extension Track {
     func withQuality(_ quality: String, mediaMetadata: MediaMetadata? = nil) -> Track {
-        Track(id: id, title: title, duration: duration, artist: artist,
+        Track(id: id, title: title, duration: duration, isrc: isrc, artist: artist,
               album: album, streamStartDate: streamStartDate,
               popularity: popularity, trackNumber: trackNumber,
               volumeNumber: volumeNumber,

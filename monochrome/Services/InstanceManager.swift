@@ -42,16 +42,19 @@ class InstanceManager: ObservableObject {
 
     @Published var apiInstances: [APIInstance] = []
     @Published var streamingInstances: [APIInstance] = []
+    @Published var qobuzInstances: [APIInstance] = []
     @Published var isRefreshing = false
 
     private var userApiInstances: [APIInstance] = []
     private var userStreamingInstances: [APIInstance] = []
+    private var userQobuzInstances: [APIInstance] = []
 
     private init() {
         loadUserInstances()
         if !loadFromCache() {
             apiInstances = Self.fallbackAPI
             streamingInstances = Self.fallbackStreaming
+            qobuzInstances = Self.fallbackQobuz
         }
         Task { [weak self] in await self?.loadFromNetwork() }
     }
@@ -59,8 +62,21 @@ class InstanceManager: ObservableObject {
     // MARK: - Public
 
     func getInstances(type: String = "api") -> [APIInstance] {
-        let user = type == "streaming" ? userStreamingInstances : userApiInstances
-        let base = type == "streaming" ? streamingInstances : apiInstances
+        let user: [APIInstance]
+        let base: [APIInstance]
+
+        switch type {
+        case "streaming":
+            user = userStreamingInstances
+            base = streamingInstances
+        case "qobuz":
+            user = userQobuzInstances
+            base = qobuzInstances
+        default:
+            user = userApiInstances
+            base = apiInstances
+        }
+
         return user + base
     }
 
@@ -71,6 +87,7 @@ class InstanceManager: ObservableObject {
         await MainActor.run {
             apiInstances = prioritySort(apiInstances)
             streamingInstances = prioritySort(streamingInstances)
+            qobuzInstances = qobuzInstances.shuffled()
             saveToCache()
             isRefreshing = false
         }
@@ -83,6 +100,9 @@ class InstanceManager: ObservableObject {
         if type == "streaming" {
             guard !userStreamingInstances.contains(where: { $0.url == cleaned }) else { return }
             userStreamingInstances.append(inst)
+        } else if type == "qobuz" {
+            guard !userQobuzInstances.contains(where: { $0.url == cleaned }) else { return }
+            userQobuzInstances.append(inst)
         } else {
             guard !userApiInstances.contains(where: { $0.url == cleaned }) else { return }
             userApiInstances.append(inst)
@@ -94,6 +114,8 @@ class InstanceManager: ObservableObject {
     func removeUserInstance(type: String, url: String) {
         if type == "streaming" {
             userStreamingInstances.removeAll { $0.url == url }
+        } else if type == "qobuz" {
+            userQobuzInstances.removeAll { $0.url == url }
         } else {
             userApiInstances.removeAll { $0.url == url }
         }
@@ -126,6 +148,10 @@ class InstanceManager: ObservableObject {
         .init(url: "https://wolf.qqdl.site", version: "2.6", isUser: false),
     ]
 
+    private static let fallbackQobuz: [APIInstance] = [
+        .init(url: "https://qobuz.kennyy.com.br", version: "1.0", isUser: false)
+    ]
+
     // MARK: - Private Helpers
 
     private func isBlocked(_ url: String) -> Bool {
@@ -148,6 +174,7 @@ class InstanceManager: ObservableObject {
         let timestamp: TimeInterval
         let api: [APIInstance]
         let streaming: [APIInstance]
+        let qobuz: [APIInstance]
     }
 
     private func loadFromCache() -> Bool {
@@ -156,11 +183,17 @@ class InstanceManager: ObservableObject {
               Date().timeIntervalSince1970 - cached.timestamp < cacheDuration else { return false }
         apiInstances = cached.api
         streamingInstances = cached.streaming
+        qobuzInstances = cached.qobuz.isEmpty ? Self.fallbackQobuz : cached.qobuz
         return true
     }
 
     private func saveToCache() {
-        let cached = CachedData(timestamp: Date().timeIntervalSince1970, api: apiInstances, streaming: streamingInstances)
+        let cached = CachedData(
+            timestamp: Date().timeIntervalSince1970,
+            api: apiInstances,
+            streaming: streamingInstances,
+            qobuz: qobuzInstances
+        )
         if let data = try? JSONEncoder().encode(cached) {
             UserDefaults.standard.set(data, forKey: storageKey)
         }
@@ -204,9 +237,19 @@ class InstanceManager: ObservableObject {
                 }
             }
 
+            var qobuz: [APIInstance] = []
+            if let arr = json["qobuz"] as? [[String: Any]] {
+                for item in arr {
+                    guard let url = item["url"] as? String, !isBlocked(url) else { continue }
+                    qobuz.append(APIInstance(url: url, version: item["version"] as? String ?? "unknown",
+                                            name: item["name"] as? String, isUser: false))
+                }
+            }
+
             guard !api.isEmpty else { return }
             apiInstances = api
             streamingInstances = streaming.isEmpty ? api : streaming
+            qobuzInstances = qobuz.isEmpty ? Self.fallbackQobuz : qobuz
             saveToCache()
         }
     }
@@ -218,10 +261,15 @@ class InstanceManager: ObservableObject {
               let decoded = try? JSONDecoder().decode([String: [APIInstance]].self, from: data) else { return }
         userApiInstances = decoded["api"] ?? []
         userStreamingInstances = decoded["streaming"] ?? []
+        userQobuzInstances = decoded["qobuz"] ?? []
     }
 
     private func saveUserInstances() {
-        let dict: [String: [APIInstance]] = ["api": userApiInstances, "streaming": userStreamingInstances]
+        let dict: [String: [APIInstance]] = [
+            "api": userApiInstances,
+            "streaming": userStreamingInstances,
+            "qobuz": userQobuzInstances
+        ]
         if let data = try? JSONEncoder().encode(dict) {
             UserDefaults.standard.set(data, forKey: userStorageKey)
         }

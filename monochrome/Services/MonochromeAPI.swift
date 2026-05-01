@@ -3,15 +3,16 @@ import Foundation
 class MonochromeAPI {
     private var urlSession = URLSession.shared
 
-    private func request(for url: URL) -> URLRequest {
+    private func request(for url: URL, timeout: TimeInterval = 30) -> URLRequest {
         var req = URLRequest(url: url)
         req.setValue("Monochrome-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        req.timeoutInterval = timeout
         return req
     }
 
-    /// Fetch data from the best available API instance, rotating on failure.
-    private func fetchData(path: String) async throws -> Data {
-        let instances = InstanceManager.shared.getInstances(type: "api")
+    /// Fetch data from the best available instance of the requested type, rotating on failure.
+    private func fetchData(path: String, type: String = "api") async throws -> Data {
+        let instances = InstanceManager.shared.getInstances(type: type)
         guard !instances.isEmpty else {
             guard let url = URL(string: "https://api.monochrome.tf\(path)") else { throw URLError(.badURL) }
             let (data, resp) = try await urlSession.data(for: request(for: url))
@@ -35,6 +36,19 @@ class MonochromeAPI {
             }
         }
         throw lastError
+    }
+
+    private func qobuzQualityValue(for quality: AudioQuality) -> String {
+        switch quality {
+        case .hiResLossless:
+            return "27"
+        case .lossless:
+            return "7"
+        case .high, .medium:
+            return "6"
+        case .low:
+            return "5"
+        }
     }
 
     // MARK: - Search
@@ -444,9 +458,35 @@ class MonochromeAPI {
         let urls: [String]
     }
 
+    private struct QobuzSearchResponse: Codable {
+        let data: QobuzSearchData?
+    }
+
+    private struct QobuzSearchData: Codable {
+        let tracks: QobuzTrackResults?
+    }
+
+    private struct QobuzTrackResults: Codable {
+        let items: [QobuzTrackItem]?
+    }
+
+    private struct QobuzTrackItem: Codable {
+        let id: Int
+        let isrc: String?
+    }
+
+    private struct QobuzDownloadResponse: Codable {
+        let success: Bool
+        let data: QobuzDownloadData?
+    }
+
+    private struct QobuzDownloadData: Codable {
+        let url: String?
+    }
+
     func fetchTrack(id: Int) async throws -> Track {
         let cacheKey = "track_\(id)"
-        if let cached: Track = CacheService.shared.get(forKey: cacheKey) {
+        if let cached: Track = CacheService.shared.get(forKey: cacheKey), cached.isrc != nil {
             return cached
         }
 
@@ -463,16 +503,55 @@ class MonochromeAPI {
         return track
     }
 
-    func fetchStreamUrl(trackId: Int, quality: AudioQuality = .high) async throws -> String? {
-        let data = try await fetchData(path: "/track/?id=\(trackId)&quality=\(quality.rawValue)")
+    private func fetchQobuzStreamUrl(isrc: String, quality: AudioQuality) async throws -> String? {
+        let instances = InstanceManager.shared.getInstances(type: "qobuz")
+        guard !instances.isEmpty else { return nil }
 
-        let apiResponse = try JSONDecoder().decode(TrackResponse.self, from: data)
-        guard let manifestBase64 = apiResponse.data?.manifest,
-              let manifestData = Data(base64Encoded: manifestBase64),
-              let manifest = try? JSONDecoder().decode(ManifestData.self, from: manifestData) else {
+        let normalizedISRC = isrc.lowercased()
+
+        for instance in instances {
+            let baseURL = instance.url.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard let searchURL = URL(string: "\(baseURL)/api/get-music?q=\(isrc.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? isrc)&offset=0") else {
+                continue
+            }
+
+            do {
+                let (searchData, searchResponse) = try await urlSession.data(for: request(for: searchURL, timeout: 8))
+                guard (searchResponse as? HTTPURLResponse)?.statusCode == 200 else { continue }
+
+                let decodedSearch = try JSONDecoder().decode(QobuzSearchResponse.self, from: searchData)
+                let tracks = decodedSearch.data?.tracks?.items ?? []
+                guard let match = tracks.first(where: { $0.isrc?.lowercased() == normalizedISRC }) ?? tracks.first else {
+                    continue
+                }
+
+                guard let streamURL = URL(string: "\(baseURL)/api/download-music?track_id=\(match.id)&quality=\(qobuzQualityValue(for: quality))") else {
+                    continue
+                }
+
+                let (streamData, streamResponse) = try await urlSession.data(for: request(for: streamURL, timeout: 8))
+                guard (streamResponse as? HTTPURLResponse)?.statusCode == 200 else { continue }
+
+                let decodedStream = try JSONDecoder().decode(QobuzDownloadResponse.self, from: streamData)
+                if decodedStream.success, let resolvedURL = decodedStream.data?.url, !resolvedURL.isEmpty {
+                    return resolvedURL
+                }
+            } catch {
+                print("[Audio] Qobuz instance \(baseURL) failed for ISRC \(isrc): \(error.localizedDescription)")
+                continue
+            }
+        }
+
+        return nil
+    }
+
+    func fetchStreamUrl(trackId: Int, quality: AudioQuality = .high) async throws -> String? {
+        let track = try await fetchTrack(id: trackId)
+        guard let isrc = track.isrc, !isrc.isEmpty else {
+            print("[Audio] Missing ISRC for track \(trackId), cannot resolve Qobuz stream")
             return nil
         }
-        return manifest.urls.first
+        return try await fetchQobuzStreamUrl(isrc: isrc, quality: quality)
     }
 
     func fetchStreamUrlWithFallback(trackId: Int, preferredQuality: AudioQuality) async -> String? {
